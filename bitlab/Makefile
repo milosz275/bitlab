@@ -32,12 +32,12 @@ MAIN = main
 default: all
 
 all: $(MAIN)
-	@echo "Project has been compiled"
+	@echo "Bitlab has been compiled"
 
 debug: CFLAGS += -g -DDEBUG -D_DEBUG
 debug: CXXFLAGS += -g -DDEBUG -D_DEBUG
 debug: $(MAIN)
-	@echo "Project has been compiled in debug mode"
+	@echo "Bitlab has been compiled in debug mode"
 
 ### Choose one of the following for C or C++ compilation -------------------
 

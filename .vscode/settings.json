@@ -3,7 +3,9 @@
     "cSpell.words": [
         "codespaces",
         "Doxygen",
-        "Doxyfile"
+        "Doxyfile",
+        "bitlab",
+        "Bitlab"
     ],
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
@@ -12,11 +14,5 @@
     "editor.formatOnSaveMode": "file",
     "editor.formatOnType": true,
     "editor.formatOnPaste": true,
-    "editor.rulers": [
-        200
-    ],
-    "editor.tabSize": 4,
-    "editor.wordWrap": "on",
-    "editor.wordWrapColumn": 200,
     "makefile.configureOnOpen": true,
 }
