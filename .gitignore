@@ -44,3 +44,10 @@ CMakeCache.txt
 
 # Other
 .notes/
+
+# Logs
+*.log
+logs/
+
+# VSCode
+*.vc.*
