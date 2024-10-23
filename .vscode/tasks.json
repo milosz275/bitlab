@@ -1,0 +1,92 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "git pull",
+            "type": "shell",
+            "command": "git pull",
+            "problemMatcher": []
+        },
+        {
+            "label": "build bitlab",
+            "type": "shell",
+            "command": "make",
+            "options": {
+                "cwd": "${workspaceFolder}/bitlab"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run bitlab",
+            "type": "shell",
+            "command": "bitlab/build/bin/main",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "isBackground": true,
+            "group": {
+                "kind": "none",
+                "isDefault": false
+            },
+            "presentation": {
+                "reveal": "always",
+                "revealProblems": "onProblem",
+                "panel": "dedicated",
+                "showReuseMessage": false,
+                "clear": false,
+                "close": true
+            },
+            "runOptions": {
+                "instanceLimit": 99999,
+                "reevaluateOnRerun": false
+            }
+        },
+        {
+            "label": "build and run bitlab",
+            "dependsOn": [
+                "build bitlab",
+                "run bitlab"
+            ],
+            "dependsOrder": "sequence"
+        },
+        {
+            "label": "clean all",
+            "command": "make",
+            "args": [
+                "clean"
+            ],
+            "problemMatcher": []
+        },
+        {
+            "label": "clean all and build bitlab",
+            "dependsOn": [
+                "clean all",
+                "build bitlab"
+            ],
+            "dependsOrder": "sequence"
+        },
+        {
+            "label": "delete database",
+            "type": "shell",
+            "command": "rm -rf *.db || rm -rf *.db-*",
+            "options": {
+                "cwd": "${workspaceFolder}/database"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "delete logs",
+            "type": "shell",
+            "command": "rm -rf *.log",
+            "options": {
+                "cwd": "${workspaceFolder}/logs"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

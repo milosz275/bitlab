@@ -11,9 +11,16 @@ BitLab is an interactive command-line tool for exploring and interacting with th
 
 BitLab acts as a powerful educational resource and debugging tool for understanding how Bitcoin nodes communicate, synchronize blocks, and process transactions.
 
+- [GitHub Repo](https://github.com/milosz275/bitlab)
+- [Doxygen Docs](https://milosz275.github.io/bitlab)
+
 ## Table of Contents
 
 ## Getting Started
+
+## Acknowledgements
+
+- [Thread-safe logging](https://github.com/milosz275/secure-chat/blob/main/common/include/log.h)
 
 ## License
 

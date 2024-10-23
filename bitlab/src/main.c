@@ -1,6 +1,16 @@
 #include <stdio.h>
+#include <stdlib.h>
 
-int main(int argc, char *argv[])
+#include "bitlab.h"
+
+int main(int argc, char* argv[])
 {
-    printf("Hello, World!\n");
+    setbuf(stdout, NULL);
+    int result = run_bitlab(argc, argv);
+    if (result != BITLAB_RESULT_SUCCESS)
+    {
+        fprintf(stderr, "BitLab failed to run with error code: %d\n", result);
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
 }
