@@ -10,6 +10,7 @@
 #define LOGS_DIR "logs"
 #define BITLAB_LOG "bitlab.log"
 #define LOG_BITLAB_STARTED "BitLab started ----------------------------------------------------------------------------------------"
+#define LOG_BITLAB_FINISHED "BitLab finished successfully"
 
 #define LOCKED_FILE_RETRY_TIME 1000 // in microseconds (1 millisecond)
 #define LOCKED_FILE_TIMEOUT 5000000 // in microseconds (5 seconds)
@@ -81,4 +82,4 @@ void log_message(log_level level, const char* filename, const char* source_file,
  */
 void finish_logging();
 
-#endif
+#endif // __LOG_H
