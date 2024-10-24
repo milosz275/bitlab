@@ -37,7 +37,7 @@ void init_logging(const char* filename)
     snprintf(full_path, sizeof(full_path), "%s/%s", log_dir, filename);
 
     pthread_mutex_lock(&logs.log_mutex);
-    for (int i = 0; i < MAX_LOG_FILES; i++)
+    for (int i = 0; i < MAX_LOG_FILES; ++i)
     {
         if (logs.array[i] == NULL)
         {
@@ -76,7 +76,7 @@ void log_message(log_level level, const char* filename, const char* source_file,
     pthread_mutex_lock(&logs.log_mutex);
 
     FILE* log = NULL;
-    for (int i = 0; i < MAX_LOG_FILES; i++)
+    for (int i = 0; i < MAX_LOG_FILES; ++i)
     {
         if (logs.array[i] != NULL && !strcmp(logs.array[i]->filename, full_path))
         {
@@ -148,7 +148,7 @@ void finish_logging()
         usleep(10000); // 10 ms
     }
     pthread_mutex_lock(&logs.log_mutex);
-    for (int i = 0; i < MAX_LOG_FILES; i++)
+    for (int i = 0; i < MAX_LOG_FILES; ++i)
     {
         if (logs.array[i] != NULL)
         {

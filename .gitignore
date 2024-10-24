@@ -51,3 +51,6 @@ logs/
 
 # VSCode
 *.vc.*
+
+# BitLab history
+.*history.txt

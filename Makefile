@@ -1,12 +1,18 @@
-SUBDIRS := $(filter-out assets/ build/ docs/, $(wildcard */))
+BITLAB = bitlab
 
-all: $(SUBDIRS)
-$(SUBDIRS):
-	$(MAKE) -C $@
+BITLAB_BIN = $(BITLAB)/build/bin/$(BITLAB)
+
+.PHONY: all bitlab
+all: bitlab
+debug: bitlab-debug
+
+bitlab:
+	$(MAKE) -C $(BITLAB)
+
+bitlab-debug:
+	$(MAKE) -C $(BITLAB) debug
 
 clean:
-	for dir in $(SUBDIRS); do \
-		$(MAKE) -C $$dir clean; \
-	done
-
-.PHONY: all $(SUBDIRS) clean
+	find $(BITLAB)/build/src -name '*.o' -delete
+	find $(BITLAB)/build/src -name '*~' -delete
+	$(RM) $(BITLAB)/build/bin/$(BITLAB)
