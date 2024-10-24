@@ -43,8 +43,16 @@ int cli_help(char** args)
 {
     if (args[0] != NULL)
         log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Arguments provided for help command ignored"); // [ ] Add help for each command
+
+    int longest_length = 0;
     for (int i = 0; i < CLI_COMMANDS_NUM; ++i)
-        printf("%-11s- %s\n", cli_commands[i].cli_command_name, cli_commands[i].cli_command_description);
+    {
+        int length = strlen(cli_commands[i].cli_command_name);
+        if (length > longest_length)
+            longest_length = length;
+    }
+    for (int i = 0; i < CLI_COMMANDS_NUM; ++i)
+        printf("%-*s - %s\n", longest_length, cli_commands[i].cli_command_name, cli_commands[i].cli_command_description);
     return 0;
 }
 
