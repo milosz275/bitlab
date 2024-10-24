@@ -1,11 +1,12 @@
 {
     "cSpell.language": "en,pl",
     "cSpell.words": [
-        "codespaces",
-        "Doxygen",
-        "Doxyfile",
         "bitlab",
-        "Bitlab"
+        "Bitlab",
+        "codespaces",
+        "Doxyfile",
+        "Doxygen",
+        "lineptr"
     ],
     "task.allowAutomaticTasks": "on",
     "editor.formatOnSave": true,
@@ -17,7 +18,9 @@
     "editor.formatOnPaste": true,
     "makefile.configureOnOpen": true,
     "files.associations": {
-        "bitlab.h": "c"
+        "bitlab.h": "c",
+        "utils.h": "c",
+        "state.h": "c"
     },
     "C_Cpp.formatting": "vcFormat",
     "C_Cpp.autoAddFileAssociations": true,
