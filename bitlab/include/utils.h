@@ -1,9 +1,12 @@
 #ifndef __UTILS_H
 #define __UTILS_H
 
+#include <stdio.h>
 #include <stddef.h>
 
 #define TIMESTAMP_LENGTH 20
+
+void usleep(unsigned int usec);
 
 /**
  * Get the timestamp. This function is used to get the timestamp in a YYYYMMDDHHMMSS format.
@@ -21,4 +24,9 @@ void get_timestamp(char* buffer, size_t buffer_size);
  */
 void get_formatted_timestamp(char* buffer, size_t buffer_size);
 
-#endif
+/**
+ * Clear the CLI window.
+ */
+void clear_cli();
+
+#endif // __UTILS_H
