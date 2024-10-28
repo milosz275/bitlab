@@ -18,7 +18,7 @@ static cli_command cli_commands[] =
     {.cli_command = &cli_history, .cli_command_name = "history", .cli_command_description = "Prints command history." },
     {.cli_command = &cli_clear, .cli_command_name = "clear", .cli_command_description = "Clears CLI screen." },
     {.cli_command = &cli_help, .cli_command_name = "help", .cli_command_description = "Prints command descriptions." },
-};
+}; // do not add NULLs at the end
 
 int cli_exit(char** args)
 {
@@ -42,11 +42,8 @@ int cli_history(char** args)
     return 0;
 }
 
-int cli_help(char** args)
+void print_help()
 {
-    if (args[0] != NULL)
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Arguments provided for help command ignored"); // [ ] Add help for each command
-
     int longest_length = 0;
     for (int i = 0; i < CLI_COMMANDS_NUM; ++i)
     {
@@ -56,6 +53,25 @@ int cli_help(char** args)
     }
     for (int i = 0; i < CLI_COMMANDS_NUM; ++i)
         printf("%-*s - %s\n", longest_length, cli_commands[i].cli_command_name, cli_commands[i].cli_command_description);
+}
+
+int cli_help(char** args)
+{
+    if (args[0] != NULL)
+    {
+        if (strcmp(args[0], "exit") == 0)
+            printf(" * Detailed information about exit command:\n * exit - Stops the server.\n");
+        else if (strcmp(args[0], "history") == 0)
+            printf(" * Detailed information about history command:\n * history - Prints command history.\n");
+        else if (strcmp(args[0], "clear") == 0)
+            printf(" * Detailed information about clear command:\n * clear - Clears CLI screen.\n");
+        else if (strcmp(args[0], "help") == 0)
+            printf(" * Detailed information about help command:\n * help - Prints command descriptions.\n");
+        else
+            printf("Unknown command: %s\n", args[0]);
+    }
+    else
+        print_help();
     return 0;
 }
 
@@ -108,7 +124,7 @@ int cli_get_line(char** lineptr, size_t* n, FILE* stream)
 
 char* cli_read_line(void)
 {
-    char* line = readline("BitLab> ");
+    char* line = readline(CLI_PREFIX);
     if (line && *line)
         add_history(line);
     return line;
@@ -175,6 +191,57 @@ int cli_exec_line(char* line)
     return 1;
 }
 
+char** cli_completion(const char* text, int start, int end)
+{
+    rl_attempted_completion_over = 1;
+    start = start; // unused
+    end = end;     // unused
+    char* line = rl_line_buffer;
+    int spaces = 0;
+
+    // print help for empty input
+    if (strlen(line) == 0)
+    {
+        putchar('\n');
+        print_help();
+        printf(CLI_PREFIX);
+        return NULL;
+    }
+
+    // count spaces
+    for (long unsigned i = 0; i < strlen(line); ++i)
+        if (line[i] == ' ')
+            spaces++;
+
+    // check if the input starts with "help" and allow for one space
+    if ((strncmp(line, "help", 4) == 0) && (spaces <= 1))
+        return rl_completion_matches(text, cli_command_generator);
+    else
+        return NULL;
+
+    return rl_completion_matches(text, cli_command_generator);
+}
+
+char* cli_command_generator(const char* text, int state)
+{
+    static int list_index, len;
+    char* name;
+    if (!state)
+    {
+        list_index = 0;
+        len = strlen(text);
+    }
+    while (list_index < CLI_COMMANDS_NUM)
+    {
+        name = cli_commands[list_index].cli_command_name;
+        list_index++;
+
+        if (strncmp(name, text, len) == 0)
+            return strdup(name);
+    }
+    return NULL;
+}
+
 void* handle_cli(void* arg)
 {
     char* line = NULL;
@@ -188,6 +255,15 @@ void* handle_cli(void* arg)
     snprintf(full_path, sizeof(full_path), "%s/%s", cli_history_dir, CLI_HISTORY_FILE);
     read_history(full_path);
     usleep(50000); // 50 ms
+
+    rl_basic_word_break_characters = " \t\n\"\\'`@$><=;|&{(";
+    rl_completer_word_break_characters = " \t\n\"\\'`@$><=;|&{(";
+    rl_completer_quote_characters = "\"\\'`";
+    rl_completion_append_character = '\0';
+    rl_attempted_completion_over = 1;
+    rl_attempted_completion_function = cli_completion;
+    // [ ] Find setting to disable inputting space after tabbing
+
     while (!get_exit_flag(&state))
     {
         line = cli_read_line();
