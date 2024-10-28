@@ -6,8 +6,13 @@
         "codespaces",
         "Doxyfile",
         "Doxygen",
+        "getaddr",
+        "getblocks",
+        "getdata",
+        "getheaders",
         "lineptr",
-        "Uninstallation"
+        "Uninstallation",
+        "verack"
     ],
     "task.allowAutomaticTasks": "on",
     "editor.formatOnSave": true,
