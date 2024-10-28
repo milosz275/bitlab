@@ -16,6 +16,7 @@ bitlab_result run_bitlab(int argc, char* argv[])
     if (argc != 1 && argv != NULL) {}
 
     // init
+    init_config_dir();
     init_logging(BITLAB_LOG);
     log_message(LOG_INFO, BITLAB_LOG, __FILE__, LOG_BITLAB_STARTED);
     init_program_state(&state);
