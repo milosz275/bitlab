@@ -3,10 +3,13 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 #include "state.h"
 #include "log.h"
 #include "utils.h"
+
+static const char* cli_history_dir = NULL;
 
 // BitLab command array
 static cli_command cli_commands[] =
@@ -175,7 +178,15 @@ int cli_exec_line(char* line)
 void* handle_cli(void* arg)
 {
     char* line = NULL;
-    read_history(CLI_HISTORY_FILE);
+    cli_history_dir = create_history_dir();
+    struct stat st = { 0 };
+
+    if (stat(cli_history_dir, &st) == -1 && mkdir(cli_history_dir, 0700) != 0)
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Failed to create history directory");
+
+    char full_path[256];
+    snprintf(full_path, sizeof(full_path), "%s/%s", cli_history_dir, CLI_HISTORY_FILE);
+    read_history(full_path);
     usleep(50000); // 50 ms
     while (!get_exit_flag(&state))
     {
@@ -183,7 +194,7 @@ void* handle_cli(void* arg)
         if (line && *line)
         {
             cli_exec_line(line);
-            write_history(CLI_HISTORY_FILE);
+            write_history(full_path);
         }
         if (line)
         {
@@ -192,6 +203,25 @@ void* handle_cli(void* arg)
         }
     }
     if (arg) {} // dummy code to avoid unused parameter warning
+    if (cli_history_dir != NULL)
+    {
+        free((void*)cli_history_dir);
+        cli_history_dir = NULL;
+    }
     log_message(LOG_INFO, BITLAB_LOG, __FILE__, "Exiting CLI thread");
     pthread_exit(NULL);
+}
+
+const char* create_history_dir()
+{
+    const char* home = getenv("HOME");
+    if (home == NULL)
+        return NULL;
+    const char* suffix = "/.bitlab/history";
+    char* logs_dir = malloc(strlen(home) + strlen(suffix) + 1);
+    if (logs_dir == NULL)
+        return NULL;
+    strcpy(logs_dir, home);
+    strcat(logs_dir, suffix);
+    return logs_dir;
 }
