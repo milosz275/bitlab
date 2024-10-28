@@ -9,6 +9,7 @@
 #define CLI_DELIM " "
 #define CLI_COMMANDS_NUM (int) (sizeof(cli_commands) / sizeof(cli_command))
 #define CLI_HISTORY_FILE "cli_history.txt"
+#define CLI_PREFIX "BitLab> "
 
 /**
  * CLI command structure.
@@ -48,6 +49,8 @@ int cli_history(char** args);
  */
 int cli_clear(char** args);
 
+void print_help();
+
 /**
  * Prints CLI command help.
  *
@@ -82,6 +85,10 @@ char* cli_read_line(void);
  * @return The exit code.
  */
 int cli_exec_line(char* line);
+
+char** cli_completion(const char* text, int start, int end);
+
+char* cli_command_generator(const char* text, int state);
 
 /**
  * CLI handler thread.
