@@ -6,7 +6,8 @@
         "codespaces",
         "Doxyfile",
         "Doxygen",
-        "lineptr"
+        "lineptr",
+        "Uninstallation"
     ],
     "task.allowAutomaticTasks": "on",
     "editor.formatOnSave": true,
