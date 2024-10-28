@@ -7,6 +7,8 @@
 #define TIMESTAMP_LENGTH 20
 
 void usleep(unsigned int usec);
+char* strdup(const char* str1);
+char* strndup(const char* src, size_t size);
 
 /**
  * Get the timestamp. This function is used to get the timestamp in a YYYYMMDDHHMMSS format.
