@@ -1,4 +1,4 @@
-# BitLab
+# BitLab: A Bitcoin P2P Network and Blockchain Explorer
 
 [![Make](https://github.com/milosz275/bitlab/actions/workflows/makefile.yml/badge.svg)](https://github.com/milosz275/bitlab/actions/workflows/makefile.yml)
 [![CodeQL](https://github.com/milosz275/bitlab/actions/workflows/codeql.yml/badge.svg)](https://github.com/milosz275/bitlab/actions/workflows/codeql.yml)
@@ -14,9 +14,52 @@ BitLab acts as a powerful educational resource and debugging tool for understand
 - [GitHub Repo](https://github.com/milosz275/bitlab)
 - [Doxygen Docs](https://milosz275.github.io/bitlab)
 
+> [!NOTE]
+> This project is a work in progress.
+
 ## Table of Contents
 
-## Getting Started
+- [Features](#features)
+- [Installation](#installation)
+- [Uninstallation](#uninstallation)
+- [Usage](#usage)
+- [Config directory](#config-directory)
+- [Acknowledgements](#acknowledgements)
+- [License](#license)
+
+## Features
+
+## Installation
+
+> [!NOTE]
+> Default installation directory is `/usr/local/bin`
+
+To install [BitLab](https://github.com/milosz275/bitlab), simply run the following command in your terminal:
+
+```bash
+curl -s https://raw.githubusercontent.com/milosz275/bitlab/main/install.sh | sudo bash
+```
+
+## Uninstallation
+
+To uninstall [BitLab](https://github.com/milosz275/bitlab), simply run the following command in your terminal:
+
+```bash
+curl -s https://raw.githubusercontent.com/milosz275/bitlab/main/uninstall.sh | sudo bash -s -- -y
+```
+
+## Usage
+
+## Config directory
+
+The default configuration directory is `~/.bitlab`. The configuration directory contains the following files:
+
+- `logs/bitlab.log`: BitLab main log file
+- `history/cli_history.txt`: BitLab CLI command history file
+<!-- - `bitlab.conf`: BitLab configuration file
+- `peers.dat`: Peer list file
+- `blocks.dat`: Block list file
+- `txs.dat`: Transaction list file -->
 
 ## Acknowledgements
 
