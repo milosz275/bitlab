@@ -2,12 +2,12 @@
 #define __LOG_H
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <pthread.h>
 
 #define MAX_LOG_FILES 10
 #define MAX_FILENAME_LENGTH 256
-#define LOGS_DIR "logs"
 #define BITLAB_LOG "bitlab.log"
 #define LOG_BITLAB_STARTED "BitLab started ----------------------------------------------------------------------------------------"
 #define LOG_BITLAB_FINISHED "BitLab finished successfully"
@@ -58,6 +58,13 @@ typedef struct loggers
     logger* array[MAX_LOG_FILES];
     int is_initializing;
 } loggers;
+
+/**
+ * Create logs directory used to create the logs directory if it does not exist.
+ *
+ * @return The logs directory.
+ */
+const char* create_logs_dir();
 
 /**
  * Initialize logging used to initialize the logging system, open and preserve the log file.

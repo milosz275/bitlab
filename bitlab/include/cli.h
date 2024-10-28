@@ -8,7 +8,7 @@
 #define CLI_BUFSIZE 64
 #define CLI_DELIM " "
 #define CLI_COMMANDS_NUM (int) (sizeof(cli_commands) / sizeof(cli_command))
-#define CLI_HISTORY_FILE ".bitlab_history.txt"
+#define CLI_HISTORY_FILE "cli_history.txt"
 
 /**
  * CLI command structure.
@@ -89,5 +89,12 @@ int cli_exec_line(char* line);
  * @param arg Not used. Write dummy code for no warning.
  */
 void* handle_cli(void* arg);
+
+/**
+ * Create history directory.
+ *
+ * @return The history directory.
+ */
+const char* create_history_dir();
 
 #endif // __CLI_H

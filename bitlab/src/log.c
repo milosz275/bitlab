@@ -17,15 +17,31 @@ static struct loggers logs = { PTHREAD_MUTEX_INITIALIZER, {NULL}, 0 };
 int fileno(FILE* __stream);
 void usleep(unsigned int usec);
 
+static const char* logs_dir = NULL;
+
+const char* create_logs_dir()
+{
+    const char* home = getenv("HOME");
+    if (home == NULL)
+        return NULL;
+    const char* suffix = "/.bitlab/logs";
+    char* logs_dir = malloc(strlen(home) + strlen(suffix) + 1);
+    if (logs_dir == NULL)
+        return NULL;
+    strcpy(logs_dir, home);
+    strcat(logs_dir, suffix);
+    return logs_dir;
+}
+
 void init_logging(const char* filename)
 {
     logs.is_initializing = 1;
-    const char* log_dir = LOGS_DIR;
+    logs_dir = create_logs_dir();
     struct stat st = { 0 };
 
-    if (stat(log_dir, &st) == -1)
+    if (stat(logs_dir, &st) == -1)
     {
-        if (mkdir(log_dir, 0700) != 0)
+        if (mkdir(logs_dir, 0700) != 0)
         {
             perror("Failed to create logs directory");
             logs.is_initializing = 0;
@@ -34,7 +50,7 @@ void init_logging(const char* filename)
     }
 
     char full_path[256];
-    snprintf(full_path, sizeof(full_path), "%s/%s", log_dir, filename);
+    snprintf(full_path, sizeof(full_path), "%s/%s", logs_dir, filename);
 
     pthread_mutex_lock(&logs.log_mutex);
     for (int i = 0; i < MAX_LOG_FILES; ++i)
@@ -68,10 +84,8 @@ void init_logging(const char* filename)
 
 void log_message(log_level level, const char* filename, const char* source_file, const char* format, ...)
 {
-    const char* log_dir = LOGS_DIR;
-
     char full_path[256];
-    snprintf(full_path, sizeof(full_path), "%s/%s", log_dir, filename);
+    snprintf(full_path, sizeof(full_path), "%s/%s", logs_dir, filename);
 
     pthread_mutex_lock(&logs.log_mutex);
 
@@ -160,4 +174,9 @@ void finish_logging()
         }
     }
     pthread_mutex_unlock(&logs.log_mutex);
+    if (logs_dir != NULL)
+    {
+        free((void*)logs_dir);
+        logs_dir = NULL;
+    }
 }

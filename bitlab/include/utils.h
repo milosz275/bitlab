@@ -29,4 +29,9 @@ void get_formatted_timestamp(char* buffer, size_t buffer_size);
  */
 void clear_cli();
 
+/**
+ * Initialize the configuration directory.
+ */
+int init_config_dir();
+
 #endif // __UTILS_H
