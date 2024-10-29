@@ -214,12 +214,9 @@ char** cli_completion(const char* text, int start, int end)
             spaces++;
 
     // check if the input starts with "help" and allow for one space
-    if ((strncmp(line, "help", 4) == 0) && (spaces <= 1))
+    if (((strncmp(line, "help", 4) == 0) && (spaces <= 1)) || (spaces <= 0))
         return rl_completion_matches(text, cli_command_generator);
-    else
-        return NULL;
-
-    return rl_completion_matches(text, cli_command_generator);
+    return NULL;
 }
 
 char* cli_command_generator(const char* text, int state)
