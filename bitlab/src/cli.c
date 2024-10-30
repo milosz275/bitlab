@@ -70,7 +70,7 @@ int cli_help(char** args)
         else if (strcmp(args[0], "help") == 0)
             printf(" * Detailed information about help command:\n * help - Prints command descriptions.\n");
         else
-            printf("Unknown command: %s\n", args[0]);
+            printf(" * Detailed information not included.\n");
     }
     else
         print_help();
