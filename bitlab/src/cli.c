@@ -51,8 +51,10 @@ void print_help()
         if (length > longest_length)
             longest_length = length;
     }
+    printf("\033[1m%-*s | %s\033[0m\n", longest_length, "Command", "Description");
+    printf("%.*s-+-%.*s\n", longest_length, "--------------------", 50, "--------------------------------------------------");
     for (int i = 0; i < CLI_COMMANDS_NUM; ++i)
-        printf("%-*s - %s\n", longest_length, cli_commands[i].cli_command_name, cli_commands[i].cli_command_description);
+        printf("%-*s | %s\n", longest_length, cli_commands[i].cli_command_name, cli_commands[i].cli_command_description);
 }
 
 int cli_help(char** args)
