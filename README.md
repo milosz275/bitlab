@@ -46,7 +46,44 @@ To uninstall [BitLab](https://github.com/milosz275/bitlab), simply run the follo
 curl -s https://raw.githubusercontent.com/milosz275/bitlab/main/uninstall.sh | sudo bash -s -- -y
 ```
 
+## Building from Source
+
+To build BitLab from source, follow these steps:
+
+1. Install the required dependencies:
+
+    ```bash
+    sudo apt-get update
+    sudo apt-get install -y cmake libreadline-dev libssl-dev
+    ```
+
+2. Clone the repository:
+
+    ```bash
+    git clone https://github.com/milosz275/bitlab.git
+    ```
+
+3. Change to the project directory:
+
+    ```bash
+    cd bitlab
+    ```
+
+4. Build the project:
+
+    ```bash
+    make
+    ```
+
+5. Use the `main` executable:
+
+    ```bash
+    bitlab/build/bin/main
+    ```
+
 ## Usage
+
+<!-- [ ] Add usage instructions -->
 
 ## Config directory
 
