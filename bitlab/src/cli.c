@@ -37,7 +37,7 @@ int cli_history(char** args)
     if (history_entries)
     {
         for (int i = 0; history_entries[i] != NULL; ++i)
-            printf("%d: %s\n", i + 1, history_entries[i]->line);
+            guarded_printf("%d: %s\n", i + 1, history_entries[i]->line);
     }
     return 0;
 }
@@ -51,10 +51,10 @@ void print_help()
         if (length > longest_length)
             longest_length = length;
     }
-    printf("\033[1m%-*s | %s\033[0m\n", longest_length, "Command", "Description");
-    printf("%.*s-+-%.*s\n", longest_length, "--------------------", 50, "--------------------------------------------------");
+    guarded_printf("\033[1m%-*s | %s\033[0m\n", longest_length, "Command", "Description");
+    guarded_printf("%.*s-+-%.*s\n", longest_length, "--------------------", 50, "--------------------------------------------------");
     for (int i = 0; i < CLI_COMMANDS_NUM; ++i)
-        printf("%-*s | %s\n", longest_length, cli_commands[i].cli_command_name, cli_commands[i].cli_command_description);
+        guarded_printf("%-*s | %s\n", longest_length, cli_commands[i].cli_command_name, cli_commands[i].cli_command_description);
 }
 
 int cli_help(char** args)
@@ -62,15 +62,15 @@ int cli_help(char** args)
     if (args[0] != NULL)
     {
         if (strcmp(args[0], "exit") == 0)
-            printf(" * Detailed information about exit command:\n * exit - Stops the server.\n");
+            guarded_printf(" * Detailed information about exit command:\n * exit - Stops the server.\n");
         else if (strcmp(args[0], "history") == 0)
-            printf(" * Detailed information about history command:\n * history - Prints command history.\n");
+            guarded_printf(" * Detailed information about history command:\n * history - Prints command history.\n");
         else if (strcmp(args[0], "clear") == 0)
-            printf(" * Detailed information about clear command:\n * clear - Clears CLI screen.\n");
+            guarded_printf(" * Detailed information about clear command:\n * clear - Clears CLI screen.\n");
         else if (strcmp(args[0], "help") == 0)
-            printf(" * Detailed information about help command:\n * help - Prints command descriptions.\n");
+            guarded_printf(" * Detailed information about help command:\n * help - Prints command descriptions.\n");
         else
-            printf(" * Detailed information not included.\n");
+            guarded_printf(" * Detailed information not included.\n");
     }
     else
         print_help();
@@ -187,7 +187,7 @@ int cli_exec_line(char* line)
             return result;
         }
     }
-    printf("Command not found! Type \"help\" to see available commands.\n");
+    guarded_printf("Command not found! Type \"help\" to see available commands.\n");
     log_message(LOG_INFO, BITLAB_LOG, __FILE__, "Command not found: %s", command);
     free(tokens);
     return 1;
@@ -206,7 +206,7 @@ char** cli_completion(const char* text, int start, int end)
     {
         putchar('\n');
         print_help();
-        printf(CLI_PREFIX);
+        guarded_printf(CLI_PREFIX);
         return NULL;
     }
 

@@ -36,4 +36,11 @@ void clear_cli();
  */
 int init_config_dir();
 
+/**
+ * Guarded printf function. This function is used to lock the stdout file and print the formatted string.
+ *
+ * @param format The format string.
+ */
+void guarded_printf(const char* format, ...);
+
 #endif // __UTILS_H

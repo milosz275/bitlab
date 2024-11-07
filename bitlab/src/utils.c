@@ -1,12 +1,16 @@
 #include "utils.h"
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <time.h>
 #include <string.h>
 #include <sys/file.h>
 #include <sys/stat.h>
 
 struct tm* localtime_r(const time_t* timer, struct tm* buf);
+void flockfile(FILE* filehandle);
+void funlockfile(FILE* file);
 
 void get_timestamp(char* buffer, size_t buffer_size)
 {
@@ -26,7 +30,7 @@ void get_formatted_timestamp(char* buffer, size_t buffer_size)
 
 void clear_cli()
 {
-    printf("\033[H\033[J");
+    guarded_printf("\033[H\033[J");
 }
 
 int init_config_dir()
@@ -44,4 +48,14 @@ int init_config_dir()
     mkdir(init_dir, 0700);
     free(init_dir);
     return 0;
+}
+
+void guarded_printf(const char* format, ...)
+{
+    flockfile(stdout);
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+    funlockfile(stdout);
 }
