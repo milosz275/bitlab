@@ -20,12 +20,12 @@ typedef struct
     volatile sig_atomic_t exit_flag;
 } program_state;
 
-extern program_state state;
+extern volatile program_state state;
 
-void init_program_state(program_state* state);
+void init_program_state(volatile program_state* state);
 
-void set_exit_flag(program_state* state, sig_atomic_t flag);
+void set_exit_flag(volatile program_state* state, sig_atomic_t flag);
 
-sig_atomic_t get_exit_flag(program_state* state);
+sig_atomic_t get_exit_flag(volatile program_state* state);
 
 #endif
