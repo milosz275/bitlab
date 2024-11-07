@@ -42,6 +42,22 @@ int cli_exit(char** args);
 int cli_history(char** args);
 
 /**
+ * Echoes the input.
+ *
+ * @param args Input that will be echoed.
+ * @return The exit code.
+ */
+int cli_echo(char** args);
+
+/**
+ * Prints the user name.
+ *
+ * @param args The arguments passed to the function should be empty.
+ * @return The exit code.
+ */
+int cli_whoami(char** args);
+
+/**
  * Clears CLI window.
  *
  * @param args The arguments passed to the function should be empty.
@@ -49,6 +65,9 @@ int cli_history(char** args);
  */
 int cli_clear(char** args);
 
+/**
+ * Prints CLI command help.
+ */
 void print_help();
 
 /**

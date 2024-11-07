@@ -18,6 +18,8 @@ static cli_command cli_commands[] =
     {.cli_command = &cli_history, .cli_command_name = "history", .cli_command_description = "Prints command history." },
     {.cli_command = &cli_clear, .cli_command_name = "clear", .cli_command_description = "Clears CLI screen." },
     {.cli_command = &cli_help, .cli_command_name = "help", .cli_command_description = "Prints command descriptions." },
+    {.cli_command = &cli_echo, .cli_command_name = "echo", .cli_command_description = "Echoes the input." },
+    {.cli_command = &cli_whoami, .cli_command_name = "whoami", .cli_command_description = "Prints the user name." },
 }; // do not add NULLs at the end
 
 int cli_exit(char** args)
@@ -69,11 +71,36 @@ int cli_help(char** args)
             guarded_printf(" * Detailed information about clear command:\n * clear - Clears CLI screen.\n");
         else if (strcmp(args[0], "help") == 0)
             guarded_printf(" * Detailed information about help command:\n * help - Prints command descriptions.\n");
+        else if (strcmp(args[0], "echo") == 0)
+            guarded_printf(" * Detailed information about echo command:\n * echo - Echoes the input.\n");
+        else if (strcmp(args[0], "whoami") == 0)
+            guarded_printf(" * Detailed information about whoami command:\n * whoami - Prints the user name.\n");
         else
             guarded_printf(" * Detailed information not included.\n");
     }
     else
         print_help();
+    return 0;
+}
+
+int cli_echo(char** args)
+{
+    if (args[0] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "No arguments provided for echo command");
+        return 1;
+    }
+    for (int i = 0; args[i] != NULL; ++i)
+        guarded_printf("%s ", args[i]);
+    guarded_printf("\n");
+    return 0;
+}
+
+int cli_whoami(char** args)
+{
+    if (args[0] != NULL)
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Arguments provided for whoami command ignored");
+    guarded_printf("You are %s\n", getenv("USER"));
     return 0;
 }
 
