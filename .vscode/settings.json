@@ -10,6 +10,7 @@
         "getblocks",
         "getdata",
         "getheaders",
+        "libreadline",
         "lineptr",
         "Uninstallation",
         "verack"
