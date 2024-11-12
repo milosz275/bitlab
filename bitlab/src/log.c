@@ -14,8 +14,6 @@
 #include "utils.h"
 
 static struct loggers logs = { PTHREAD_MUTEX_INITIALIZER, {NULL}, 0 };
-int fileno(FILE* __stream);
-void usleep(unsigned int usec);
 
 static const char* logs_dir = NULL;
 
