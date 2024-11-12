@@ -96,6 +96,14 @@ The default configuration directory is `~/.bitlab`. The configuration directory 
 - `blocks.dat`: Block list file
 - `txs.dat`: Transaction list file -->
 
+Please feel free to link logs to your working directory:
+
+```bash
+mkdir -p logs
+ln -s ~/.bitlab/logs/bitlab.log logs/bitlab.log
+ln -s ~/.bitlab/history/cli_history.txt logs/cli_history.txt
+```
+
 ## Features
 
 ### 1. Peer Discovery
