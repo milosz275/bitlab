@@ -3,12 +3,24 @@
 
 #include <stdio.h>
 #include <stddef.h>
+#include <time.h>
+
+#include "log.h"
 
 #define TIMESTAMP_LENGTH 20
 
 void usleep(unsigned int usec);
 char* strdup(const char* str1);
 char* strndup(const char* src, size_t size);
+
+int fileno(FILE* __stream);
+void usleep(unsigned int usec);
+
+struct tm* localtime_r(const time_t* timer, struct tm* buf);
+void flockfile(FILE* filehandle);
+void funlockfile(FILE* file);
+FILE* popen(const char* command, const char* type);
+int pclose(FILE* stream);
 
 /**
  * Get the timestamp. This function is used to get the timestamp in a YYYYMMDDHHMMSS format.
@@ -37,10 +49,17 @@ void clear_cli();
 int init_config_dir();
 
 /**
- * Guarded printf function. This function is used to lock the stdout file and print the formatted string.
+ * Guarded print function. This function is used to lock the stdout file and print the formatted string.
  *
  * @param format The format string.
  */
-void guarded_printf(const char* format, ...);
+void guarded_print(const char* format, ...);
+
+/**
+ * Guarded print line function. This function is used to lock the stdout file and print the formatted string.
+ *
+ * @param format The format string.
+ */
+void guarded_print_line(const char* format, ...);
 
 #endif // __UTILS_H
