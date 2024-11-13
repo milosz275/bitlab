@@ -104,6 +104,9 @@ ln -s ~/.bitlab/logs/bitlab.log logs/bitlab.log
 ln -s ~/.bitlab/history/cli_history.txt logs/cli_history.txt
 ```
 
+> [!NOTE]
+> Running as root will create the configuration directory in `/root/.bitlab`.
+
 ## Features
 
 ### 1. Peer Discovery
