@@ -18,12 +18,13 @@ bitlab_result run_bitlab(int argc, char* argv[])
     log_message(LOG_INFO, BITLAB_LOG, __FILE__, LOG_BITLAB_STARTED);
     init_program_state(&state);
     init_program_operation(&operation);
-    pthread_t cli_thread = thread_runner(handle_cli, NULL);
-    pthread_t peer_discovery_thread = thread_runner(handle_peer_discovery, NULL);
+    pthread_t cli_thread = thread_runner(handle_cli, "CLI", NULL);
+    pthread_t peer_discovery_thread = thread_runner(handle_peer_discovery, "Peer discovery", NULL);
 
     // execute command line arguments
     if (argc > 1 && argv != NULL)
     {
+        mark_started_with_parameters();
         int total_length = 0;
         for (int i = 1; i < argc; ++i)
             total_length += strlen(argv[i]) + 1;
@@ -40,9 +41,14 @@ bitlab_result run_bitlab(int argc, char* argv[])
                 if (i < argc - 1)
                     strcat(line, " ");
             }
+
+            if (argv[1] && strcmp(argv[1], "exit") == 0)
+                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Starting BitLab with \"%s\" parameter", line);
+
             cli_exec_line(line);
             free(line);
         }
+        guarded_print_line("Close BitLab using \"exit\"");
     }
 
     // main loop
