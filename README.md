@@ -124,7 +124,7 @@ Easily find and connect with peers using various methods:
 
 - **Peer Information:**
   - Print out IP addresses of discovered peers.
-  - Optionally, perform recursive discovery to find more peers.
+  - Perform recursive discovery to find given amounts of peers.
 
 ### 2. Connection to Peers
 
