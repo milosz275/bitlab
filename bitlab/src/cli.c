@@ -294,7 +294,7 @@ int cli_get_ip(char** args)
         {
             if (is_valid_domain_address(args[0]))
             {
-                get_ip_of_address(args[0], ip_address);
+                lookup_address(args[0], ip_address);
                 guarded_print_line("IP address of %s: %s", args[0], ip_address);
             }
             else
@@ -305,9 +305,10 @@ int cli_get_ip(char** args)
             int i = 0;
             while (args[i] != NULL)
             {
+                ip_address[0] = '\0';
                 if (is_valid_domain_address(args[i]))
                 {
-                    get_ip_of_address(args[i], ip_address);
+                    lookup_address(args[i], ip_address);
                     guarded_print_line("%d: IP address of %s: %s", i + 1, args[i], ip_address);
                 }
                 else

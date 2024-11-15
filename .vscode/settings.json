@@ -11,6 +11,7 @@
         "getdata",
         "getheaders",
         "getip",
+        "ipver",
         "libreadline",
         "lineptr",
         "peerdiscovery",
@@ -31,7 +32,8 @@
         "utils.h": "c",
         "state.h": "c",
         "fcntl.h": "c",
-        "log.h": "c"
+        "log.h": "c",
+        "cstdlib": "c"
     },
     "C_Cpp.formatting": "vcFormat",
     "C_Cpp.autoAddFileAssociations": true,

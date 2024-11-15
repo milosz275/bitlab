@@ -3,21 +3,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <arpa/inet.h>
 
 #include "utils.h"
 
-void get_local_ip_address(char* ip_address)
+void get_local_ip_address(char* ip_addr)
 {
     FILE* file = popen("hostname -I", "r");
     if (file == NULL)
     {
-        strcpy(ip_address, " ");
+        strcpy(ip_addr, " ");
         return;
     }
     char buffer[256];
     if (fgets(buffer, sizeof(buffer), file) == NULL)
     {
-        strcpy(ip_address, " ");
+        strcpy(ip_addr, " ");
         pclose(file);
         return;
     }
@@ -25,21 +26,21 @@ void get_local_ip_address(char* ip_address)
     char* newline = strchr(buffer, '\n');
     if (newline != NULL)
         *newline = '\0';
-    strcpy(ip_address, buffer);
+    strcpy(ip_addr, buffer);
 }
 
-void get_remote_ip_address(char* ip_address)
+void get_remote_ip_address(char* ip_addr)
 {
     FILE* file = popen("curl -s ifconfig.me", "r");
     if (file == NULL)
     {
-        strcpy(ip_address, " ");
+        strcpy(ip_addr, " ");
         return;
     }
     char buffer[256];
     if (fgets(buffer, sizeof(buffer), file) == NULL)
     {
-        strcpy(ip_address, " ");
+        strcpy(ip_addr, " ");
         pclose(file);
         return;
     }
@@ -47,59 +48,59 @@ void get_remote_ip_address(char* ip_address)
     char* newline = strchr(buffer, '\n');
     if (newline != NULL)
         *newline = '\0';
-    strcpy(ip_address, buffer);
+    strcpy(ip_addr, buffer);
 }
 
-void get_ip_of_address(const char* addr, char* ip_address)
+void lookup_address(const char* lookup_addr, char* ip_addr)
 {
-    char command[256];
-    char buffer[256];
-    char current_addr[240];
-    strncpy(current_addr, addr, sizeof(current_addr) - 1);
-    current_addr[sizeof(current_addr) - 1] = '\0';
+    struct addrinfo hints, * res, * p;
+    int status;
+    char ipstr[INET6_ADDRSTRLEN];
 
-    while (1)
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET; // AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+
+    if ((status = getaddrinfo(lookup_addr, NULL, &hints, &res)) != 0)
     {
-        snprintf(command, sizeof(command), "dig +short %s", current_addr);
-
-        FILE* file = popen(command, "r");
-        if (file == NULL)
-        {
-            strcpy(ip_address, " ");
-            return;
-        }
-
-        if (fgets(buffer, sizeof(buffer), file) == NULL)
-        {
-            strcpy(ip_address, " ");
-            pclose(file);
-            return;
-        }
-        pclose(file);
-
-        char* newline = strchr(buffer, '\n');
-        if (newline != NULL)
-            *newline = '\0';
-
-        if (is_numeric_address(buffer))
-        {
-            if (is_in_private_network(buffer))
-                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Searching remote of %s: fetched IP address %s is in the private network", addr, buffer);
-
-            strcpy(ip_address, buffer);
-            return;
-        }
-        strncpy(current_addr, buffer, sizeof(current_addr) - 1);
-        current_addr[sizeof(current_addr) - 1] = '\0';
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
+        ip_addr[0] = '\0';
+        return;
     }
+
+    for (p = res; p != NULL; p = p->ai_next)
+    {
+        void* addr = NULL;
+        if (p->ai_family == AF_INET) // IPv4
+        {
+            struct sockaddr_in* ipv4 = (struct sockaddr_in*)p->ai_addr;
+            addr = &(ipv4->sin_addr);
+        }
+        // else // IPv6
+        // {
+        //     struct sockaddr_in6* ipv6 = (struct sockaddr_in6*)p->ai_addr;
+        //     addr = &(ipv6->sin6_addr);
+        // }
+        inet_ntop(p->ai_family, addr, ipstr, sizeof(ipstr));
+        strcat(ip_addr, ipstr);
+        strcat(ip_addr, " ");
+    }
+    freeaddrinfo(res);
 }
 
-int is_in_private_network(const char* ip_address)
+int is_in_private_network(const char* ip_addr)
 {
+    if (!is_numeric_address(ip_addr))
+    {
+        char ip[256];
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "IP address is not numeric, performing lookup of %s whether it is in private prefix", ip_addr);
+        lookup_address(ip_addr, ip);
+        return is_in_private_network(ip);
+    }
     unsigned int b1, b2, b3, b4;
-    if (ip_address == NULL)
+    if (ip_addr == NULL)
         return 0;
-    if (sscanf(ip_address, "%u.%u.%u.%u", &b1, &b2, &b3, &b4) != 4)
+    if (sscanf(ip_addr, "%u.%u.%u.%u", &b1, &b2, &b3, &b4) != 4)
         return 0;
     if ((b1 == 192 && b2 == 168) ||
         (b1 == 10) ||
@@ -108,23 +109,34 @@ int is_in_private_network(const char* ip_address)
     return 0;
 }
 
-int is_numeric_address(const char* ip_address)
+int is_numeric_address(const char* ip_addr)
 {
-    if (ip_address == NULL)
+    if (ip_addr == NULL)
         return 0;
-    for (size_t i = 0; i < strlen(ip_address); ++i)
+    int dots = 0;
+    for (size_t i = 0; i < strlen(ip_addr); ++i)
     {
-        if (ip_address[i] != '.' && (ip_address[i] < '0' || ip_address[i] > '9'))
+        if (ip_addr[i] == '.')
+            dots++;
+        else if (ip_addr[i] < '0' || ip_addr[i] > '9')
+            return 0;
+        if (dots > 3)
             return 0;
     }
     return 1;
 }
 
-int is_valid_domain_address(const char* ip_address)
+int is_valid_domain_address(const char* domain_addr)
 {
-    if (ip_address == NULL)
+    if (domain_addr == NULL)
         return 0;
-    if (strstr(ip_address, ".") == NULL)
+    if (is_numeric_address(domain_addr))
         return 0;
+    if (strstr(domain_addr, ".") == NULL)
+        return 0;
+    char ip[256];
+    lookup_address(domain_addr, ip);
+    if (strlen(ip) == 0)
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Although %s is a valid domain, it does not resolve", domain_addr);
     return 1;
 }
