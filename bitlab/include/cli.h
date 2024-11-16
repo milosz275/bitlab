@@ -129,6 +129,14 @@ int cli_clear(char** args);
  */
 int cli_help(char** args);
 
+/**
+ * Pings the specified IP address.
+ *
+ * @param args The IP address.
+ * @return The exit code.
+ */
+int cli_ping(char** args);
+
 
 
 //// LINE HANDLING FUNCTIONS ////
