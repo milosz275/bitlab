@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <resolv.h>
 
 #include "utils.h"
 
@@ -15,7 +16,7 @@ void get_local_ip_address(char* ip_addr)
         strcpy(ip_addr, " ");
         return;
     }
-    char buffer[256];
+    char buffer[BUFFER_SIZE];
     if (fgets(buffer, sizeof(buffer), file) == NULL)
     {
         strcpy(ip_addr, " ");
@@ -37,7 +38,7 @@ void get_remote_ip_address(char* ip_addr)
         strcpy(ip_addr, " ");
         return;
     }
-    char buffer[256];
+    char buffer[BUFFER_SIZE];
     if (fgets(buffer, sizeof(buffer), file) == NULL)
     {
         strcpy(ip_addr, " ");
@@ -51,48 +52,54 @@ void get_remote_ip_address(char* ip_addr)
     strcpy(ip_addr, buffer);
 }
 
-void lookup_address(const char* lookup_addr, char* ip_addr)
+int lookup_address(const char* lookup_addr, char* ip_addr)
 {
     struct addrinfo hints, * res, * p;
     int status;
     char ipstr[INET6_ADDRSTRLEN];
 
+    memset(ip_addr, 0, MAX_IP_ADDR_LEN);
     memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_INET; // AF_UNSPEC;
+    hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
     if ((status = getaddrinfo(lookup_addr, NULL, &hints, &res)) != 0)
     {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
         ip_addr[0] = '\0';
-        return;
+        return -1;
     }
 
     for (p = res; p != NULL; p = p->ai_next)
     {
         void* addr = NULL;
-        if (p->ai_family == AF_INET) // IPv4
+        if (p->ai_family == AF_INET)
         {
             struct sockaddr_in* ipv4 = (struct sockaddr_in*)p->ai_addr;
             addr = &(ipv4->sin_addr);
+            if (addr != NULL)
+            {
+                if (strcmp(inet_ntoa(ipv4->sin_addr), "0.0.0.0") == 0)
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Failed to resolve %s. Appending 0.0.0.0", lookup_addr);
+                inet_ntop(p->ai_family, addr, ipstr, sizeof(ipstr));
+                strcat(ip_addr, ipstr);
+                strcat(ip_addr, " ");
+            }
         }
-        // else // IPv6
-        // {
-        //     struct sockaddr_in6* ipv6 = (struct sockaddr_in6*)p->ai_addr;
-        //     addr = &(ipv6->sin6_addr);
-        // }
-        inet_ntop(p->ai_family, addr, ipstr, sizeof(ipstr));
-        strcat(ip_addr, ipstr);
-        strcat(ip_addr, " ");
     }
+
+    if (strlen(ip_addr) > 0)
+        ip_addr[strlen(ip_addr) - 1] = '\0';
+
     freeaddrinfo(res);
+    return 0;
 }
 
 int is_in_private_network(const char* ip_addr)
 {
     if (!is_numeric_address(ip_addr))
     {
-        char ip[256];
+        char ip[BUFFER_SIZE];
         log_message(LOG_WARN, BITLAB_LOG, __FILE__, "IP address is not numeric, performing lookup of %s whether it is in private prefix", ip_addr);
         lookup_address(ip_addr, ip);
         return is_in_private_network(ip);
@@ -134,7 +141,7 @@ int is_valid_domain_address(const char* domain_addr)
         return 0;
     if (strstr(domain_addr, ".") == NULL)
         return 0;
-    char ip[256];
+    char ip[BUFFER_SIZE];
     lookup_address(domain_addr, ip);
     if (strlen(ip) == 0)
         log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Although %s is a valid domain, it does not resolve", domain_addr);

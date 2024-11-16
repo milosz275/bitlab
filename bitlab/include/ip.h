@@ -5,6 +5,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
+#define MAX_IP_ADDR_LEN 1024
+
 /**
  * Get the local IP address of the machine (e.g. 192.168.1.10).
  *
@@ -24,8 +26,9 @@ void get_remote_ip_address(char* ip_addr);
  *
  * @param lookup_addr The current address to lookup.
  * @param ip_addr The buffer to store the IP address.
+ * @return 0 if successful, otherwise -1 or 1.
  */
-void lookup_address(const char* lookup_addr, char* ip_addr);
+int lookup_address(const char* lookup_addr, char* ip_addr);
 
 /**
  * Check if the IP address is in the private prefix (e.g. 192.168.1.10 is, 1.1.1.1 is not).
