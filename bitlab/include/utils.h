@@ -8,10 +8,12 @@
 #include "log.h"
 
 #define TIMESTAMP_LENGTH 20
+#define BUFFER_SIZE 8096
 
 void usleep(unsigned int usec);
 char* strdup(const char* str1);
 char* strndup(const char* src, size_t size);
+char* strtok(char* str, const char* delimiters);
 
 int fileno(FILE* __stream);
 void usleep(unsigned int usec);
