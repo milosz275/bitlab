@@ -15,6 +15,7 @@
         "libreadline",
         "lineptr",
         "peerdiscovery",
+        "sipa",
         "Uninstallation",
         "verack"
     ],
@@ -33,7 +34,9 @@
         "state.h": "c",
         "fcntl.h": "c",
         "log.h": "c",
-        "cstdlib": "c"
+        "cstdlib": "c",
+        "cli.h": "c",
+        "stdio.h": "c"
     },
     "C_Cpp.formatting": "vcFormat",
     "C_Cpp.autoAddFileAssociations": true,
