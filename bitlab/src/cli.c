@@ -31,7 +31,7 @@ static cli_command cli_commands[] =
         .cli_command_name = "echo",
         .cli_command_brief_desc = "Echoes the input.",
         .cli_command_detailed_desc = " * echo - Outputs the text or arguments provided as input.",
-        .cli_command_usage = "echo [This is an example text to be echoed.]"
+        .cli_command_usage = "echo [Text to be echoed]"
     },
     {
         .cli_command = &cli_exit,
@@ -67,6 +67,13 @@ static cli_command cli_commands[] =
         .cli_command_brief_desc = "Starts peer discovery.",
         .cli_command_detailed_desc = " * peerdiscovery - Initiates the peer discovery process (currently a work in progress).",
         .cli_command_usage = "peerdiscovery [-d | --daemon]"
+    },
+    {
+        .cli_command = &cli_ping,
+        .cli_command_name = "ping",
+        .cli_command_brief_desc = "Pings the specified IP address.",
+        .cli_command_detailed_desc = " * ping - Pings the specified IP address to check for connectivity.",
+        .cli_command_usage = "ping [-c | --count]"
     },
     {
         .cli_command = &cli_whoami,
@@ -123,6 +130,7 @@ void print_usage(const char* command_name)
             return;
         }
     }
+    guarded_print_line("Unknown command: %s", command_name);
 }
 
 void print_commands()
@@ -259,7 +267,7 @@ int cli_whoami(char** args)
         guarded_print_line("%s", getenv("USER"));
     else
     {
-        char ip_address[256];
+        char ip_address[BUFFER_SIZE];
         get_local_ip_address(ip_address);
 
         if (getenv("USER") == NULL)
@@ -282,7 +290,7 @@ int cli_whoami(char** args)
 int cli_get_ip(char** args)
 {
     pthread_mutex_lock(&cli_mutex);
-    char ip_address[256];
+    char ip_address[BUFFER_SIZE];
     if (args[0] == NULL)
     {
         get_remote_ip_address(ip_address);
@@ -380,7 +388,75 @@ int cli_peer_discovery(char** args)
     }
 
     // [ ] Add peer discovery results
-    
+
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_ping(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    int count = 4;
+    int sleep_time = 1;
+    char ip_address[BUFFER_SIZE] = { 0 };
+
+    int i = 0;
+    while (args[i] != NULL)
+    {
+        if (strcmp(args[i], "-c") == 0 || strcmp(args[i], "--count") == 0)
+        {
+            if (args[i + 1] == NULL)
+            {
+                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Missing count value for ping command.");
+                print_usage("ping");
+                pthread_mutex_unlock(&cli_mutex);
+                return 1;
+            }
+
+            count = strtol(args[i + 1], NULL, 10);
+            if (count <= 0)
+            {
+                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Invalid count value: %s", args[i + 1]);
+                print_usage("ping");
+                pthread_mutex_unlock(&cli_mutex);
+                return 1;
+            }
+            i += 2;
+        }
+        else if (ip_address[0] == '\0')
+        {
+            if (strlen(args[i]) >= BUFFER_SIZE)
+            {
+                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Invalid IP address for ping command.");
+                print_usage("ping");
+                pthread_mutex_unlock(&cli_mutex);
+                return 1;
+            }
+            strncpy(ip_address, args[i], BUFFER_SIZE - 1);
+            i++;
+        }
+        else
+        {
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Too many arguments for ping command: %s", args[i]);
+            print_usage("ping");
+            pthread_mutex_unlock(&cli_mutex);
+            return 1;
+        }
+    }
+
+    if (ip_address[0] == '\0')
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Missing IP address for ping command.");
+        print_usage("ping");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    guarded_print_line("Pinging %s with count %d", ip_address, count);
+    char command[BUFFER_SIZE];
+    snprintf(command, sizeof(command), "ping -c %d -i %d %s", count, sleep_time, ip_address);
+    system(command);
+
     pthread_mutex_unlock(&cli_mutex);
     return 0;
 }
@@ -418,7 +494,7 @@ int cli_get_line(char** lineptr, size_t* n, FILE* stream)
     if (feof(stream))
         return -1;
 
-    (void)fgets(line, 256, stream);
+    (void)fgets(line, MAX_LINE_LEN, stream);
 
     ptr = strchr(line, '\n');
     if (ptr)
@@ -426,13 +502,13 @@ int cli_get_line(char** lineptr, size_t* n, FILE* stream)
 
     len = strlen(line);
 
-    if ((len + 1) < 256)
+    if ((len + 1) < MAX_LINE_LEN)
     {
-        ptr = realloc(*lineptr, 256);
+        ptr = realloc(*lineptr, MAX_LINE_LEN);
         if (ptr == NULL)
             return(-1);
         *lineptr = ptr;
-        *n = 256;
+        *n = MAX_LINE_LEN;
     }
 
     strcpy(*lineptr, line);
@@ -572,7 +648,7 @@ void* handle_cli(void* arg)
     if (stat(cli_history_dir, &st) == -1 && mkdir(cli_history_dir, 0700) != 0)
         log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Failed to create history directory");
 
-    char full_path[256];
+    char full_path[BUFFER_SIZE];
     snprintf(full_path, sizeof(full_path), "%s/%s", cli_history_dir, CLI_HISTORY_FILE);
     read_history(full_path);
     usleep(50000); // 50 ms
