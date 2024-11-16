@@ -23,9 +23,10 @@ program_state state = { 0, 0, 0, 0, PTHREAD_MUTEX_INITIALIZER };
  *
  * @param peer_discovery The peer discovery operation of the program.
  * @param peer_discovery_in_progress The peer discovery operation in progress.
+ * @param peer_discovery_succeeded The peer discovery operation succeeded.
  * @param mutex The mutex to protect the operation.
  */
-program_operation operation = { false, false, PTHREAD_MUTEX_INITIALIZER };
+program_operation operation = { false, false, false, PTHREAD_MUTEX_INITIALIZER };
 
 void init_program_state(program_state* state)
 {
@@ -72,16 +73,30 @@ int init_program_operation(program_operation* operation)
     return 0;
 }
 
+void start_peer_discovery_progress()
+{
+    pthread_mutex_lock(&operation.operation_mutex);
+    if (operation.peer_discovery)
+        operation.peer_discovery_in_progress = true;
+    else
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Peer discovery operation not set, cannot start progress");
+    pthread_mutex_unlock(&operation.operation_mutex);
+}
+
+void finish_peer_discovery_progress(bool succeeded)
+{
+    pthread_mutex_lock(&operation.operation_mutex);
+    operation.peer_discovery = false;
+    operation.peer_discovery_in_progress = false;
+    operation.peer_discovery_succeeded = succeeded;
+    pthread_mutex_unlock(&operation.operation_mutex);
+}
+
 int set_peer_discovery(bool value)
 {
     pthread_mutex_lock(&operation.operation_mutex);
     if (operation.peer_discovery && operation.peer_discovery_in_progress && !value)
         log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Peer discovery operation in progress, cannot stop. Did you mean force_stop_peer_discovery?");
-    else if (!operation.peer_discovery && !operation.peer_discovery_in_progress && value)
-    {
-        operation.peer_discovery = true;
-        operation.peer_discovery_in_progress = true;
-    }
     else
         operation.peer_discovery = value;
     pthread_mutex_unlock(&operation.operation_mutex);
@@ -101,7 +116,15 @@ int force_stop_peer_discovery()
 bool get_peer_discovery()
 {
     pthread_mutex_lock(&operation.operation_mutex);
-    bool value = operation.peer_discovery && operation.peer_discovery_in_progress;
+    bool value = operation.peer_discovery;
+    pthread_mutex_unlock(&operation.operation_mutex);
+    return value;
+}
+
+bool get_peer_discovery_in_progress()
+{
+    pthread_mutex_lock(&operation.operation_mutex);
+    bool value = operation.peer_discovery_in_progress;
     pthread_mutex_unlock(&operation.operation_mutex);
     return value;
 }

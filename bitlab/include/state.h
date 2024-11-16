@@ -30,13 +30,15 @@ typedef struct
  * The program operation structure used to store the operation of the program.
  *
  * @param peer_discovery The peer discovery operation of the program.
- * @param operation_mutex The mutex to protect the operation.
  * @param peer_discovery_in_progress The peer discovery operation in progress.
+ * @param peer_discovery_succeeded The peer discovery operation succeeded.
+ * @param operation_mutex The mutex to protect the operation.
  */
 typedef struct
 {
     bool peer_discovery;
     bool peer_discovery_in_progress;
+    bool peer_discovery_succeeded;
     pthread_mutex_t operation_mutex;
 } program_operation;
 
@@ -92,7 +94,19 @@ void destroy_program_state(program_state* state);
 int init_program_operation(program_operation* operation);
 
 /**
- * Set the peer discovery operation.
+ * Start the peer discovery progress. This function only starts the progress if the peer discovery operation is set.
+ */
+void start_peer_discovery_progress();
+
+/**
+ * Finish the peer discovery progress.
+ *
+ * @param succeeded The flag to indicate if the peer discovery operation succeeded.
+ */
+void finish_peer_discovery_progress(bool succeeded);
+
+/**
+ * Set the peer discovery operation. This function cannot stop the peer discovery operation if it is in progress. Use force_stop_peer_discovery instead.
  *
  * @param value The value to set.
  * @return 0 if successful, otherwise 1.
@@ -105,6 +119,13 @@ int set_peer_discovery(bool value);
  * @return The peer discovery operation state.
  */
 bool get_peer_discovery();
+
+/**
+ * Get the peer discovery in progress state.
+ *
+ * @return The peer discovery in progress state.
+ */
+bool get_peer_discovery_in_progress();
 
 /**
  * Clear all program operations.
