@@ -14,8 +14,6 @@
 #include "utils.h"
 
 static struct loggers logs = { PTHREAD_MUTEX_INITIALIZER, {NULL}, 0 };
-int fileno(FILE* __stream);
-void usleep(unsigned int usec);
 
 static const char* logs_dir = NULL;
 
@@ -49,7 +47,7 @@ void init_logging(const char* filename)
         }
     }
 
-    char full_path[256];
+    char full_path[BUFFER_SIZE];
     snprintf(full_path, sizeof(full_path), "%s/%s", logs_dir, filename);
 
     pthread_mutex_lock(&logs.log_mutex);
@@ -84,7 +82,7 @@ void init_logging(const char* filename)
 
 void log_message(log_level level, const char* filename, const char* source_file, const char* format, ...)
 {
-    char full_path[256];
+    char full_path[BUFFER_SIZE];
     snprintf(full_path, sizeof(full_path), "%s/%s", logs_dir, filename);
 
     pthread_mutex_lock(&logs.log_mutex);
