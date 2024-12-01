@@ -32,7 +32,10 @@ void* handle_peer_discovery(void* arg)
                 peer_count++;
             }
             if (peer_count > 0)
+            {
+                log_message(LOG_INFO, BITLAB_LOG, __FILE__, "Peer discovery succeeded: found %d peers", peer_count);
                 finish_peer_discovery_progress(true);
+            }
             else
             {
                 log_message(LOG_ERROR, BITLAB_LOG, __FILE__, "Peer discovery failed: no peers found");
