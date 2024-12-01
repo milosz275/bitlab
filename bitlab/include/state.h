@@ -54,10 +54,8 @@ extern program_operation operation;
 
 /**
  * Initialize the program state.
- *
- * @param state The program state to initialize.
  */
-void init_program_state(program_state* state);
+void init_program_state();
 
 /**
  * Set the exit flag.

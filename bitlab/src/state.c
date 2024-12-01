@@ -28,12 +28,12 @@ program_state state = { 0, 0, 0, 0, PTHREAD_MUTEX_INITIALIZER };
  */
 program_operation operation = { false, false, false, PTHREAD_MUTEX_INITIALIZER };
 
-void init_program_state(program_state* state)
+void init_program_state()
 {
-    state->pid = getpid();
-    state->start_time = time(NULL);
-    state->exit_flag = 0;
-    pthread_mutex_init(&state->exit_flag_mutex, NULL);
+    state.pid = getpid();
+    state.start_time = time(NULL);
+    state.exit_flag = 0;
+    pthread_mutex_init(&state.exit_flag_mutex, NULL);
 
     if (strcmp(getenv("USER"), "root") == 0)
         log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Running as root is not recommended");
