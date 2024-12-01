@@ -659,7 +659,8 @@ void* handle_cli(void* arg)
     rl_completion_append_character = '\0';
     rl_attempted_completion_over = 1;
     rl_attempted_completion_function = cli_completion;
-    // [ ] Find setting to disable inputting space after tabbing
+    rl_getc_function = getc;
+    rl_catch_signals = 0;
 
     while (!get_exit_flag())
     {
