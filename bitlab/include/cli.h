@@ -106,6 +106,14 @@ int cli_whoami(char** args);
 int cli_get_ip(char** args);
 
 /**
+ * Prints program information.
+ *
+ * @param args The arguments passed to the function should be empty.
+ * @return The exit code.
+ */
+int cli_info(char** args);
+
+/**
  * Discovers Bitcoin peers.
  *
  * @param args The arguments passed to the function should be empty.
