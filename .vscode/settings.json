@@ -36,7 +36,9 @@
         "log.h": "c",
         "cstdlib": "c",
         "cli.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "network.h": "c",
+        "peer_queue.h": "c"
     },
     "C_Cpp.formatting": "vcFormat",
     "C_Cpp.autoAddFileAssociations": true,
