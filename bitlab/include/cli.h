@@ -9,21 +9,61 @@
 #define CLI_DELIM " "
 #define CLI_COMMANDS_NUM (int) (sizeof(cli_commands) / sizeof(cli_command))
 #define CLI_HISTORY_FILE "cli_history.txt"
-#define CLI_PREFIX "BitLab> "
+#define CLI_PREFIX "\033[38;5;220mBitLab \033[0m"
 
 /**
- * CLI command structure.
+ * CLI command structure. Note that the only uninitialized field can be the cli_command_detailed_desc.
  *
  * @param cli_command The function pointer to executed function.
  * @param cli_command_name The name of command by which it is called.
- * @param cli_command_description The description of command printed by !help.
+ * @param cli_command_description The description of command printed by "help".
+ * @param cli_command_detailed_desc The detailed description of command printed by "help <command>".
+ * @param cli_command_usage The usage of command printed on wrong parameters.
  */
 typedef struct
 {
-    int (*cli_command)(char**);
-    char* cli_command_name;
-    char* cli_command_description;
+    int (*cli_command)(char** args);
+    const char* cli_command_name;
+    const char* cli_command_brief_desc;
+    const char* cli_command_detailed_desc;
+    const char* cli_command_usage;
 } cli_command;
+
+
+
+//// PRINT FUNCTIONS ////
+
+/**
+ * Prints CLI command help.
+ */
+void print_help();
+
+/**
+ * Prints CLI command usage.
+ *
+ * @param command_name The name of the command.
+ */
+void print_usage(const char* command_name);
+
+/**
+ * Prints CLI commands.
+ */
+void print_commands();
+
+
+
+//// HISTORY FUNCTIONS ////
+
+/**
+ * Create history directory.
+ *
+ * @return The history directory.
+ */
+const char* create_history_dir();
+
+
+
+//// CLI COMMANDS ////
 
 /**
  * Exits BitLab CLI command.
@@ -58,6 +98,30 @@ int cli_echo(char** args);
 int cli_whoami(char** args);
 
 /**
+ * Gets remote IP address on an URL or host machine if no URL is provided.
+ *
+ * @param args The URL.
+ * @return The exit code.
+ */
+int cli_get_ip(char** args);
+
+/**
+ * Prints program information.
+ *
+ * @param args The arguments passed to the function should be empty.
+ * @return The exit code.
+ */
+int cli_info(char** args);
+
+/**
+ * Discovers Bitcoin peers.
+ *
+ * @param args The arguments passed to the function should be empty.
+ * @return The exit code.
+ */
+int cli_peer_discovery(char** args);
+
+/**
  * Clears CLI window.
  *
  * @param args The arguments passed to the function should be empty.
@@ -67,16 +131,23 @@ int cli_clear(char** args);
 
 /**
  * Prints CLI command help.
- */
-void print_help();
-
-/**
- * Prints CLI command help.
  *
  * @param args The arguments passed to this function should be empty.
  * @return The exit code.
  */
 int cli_help(char** args);
+
+/**
+ * Pings the specified IP address.
+ *
+ * @param args The IP address.
+ * @return The exit code.
+ */
+int cli_ping(char** args);
+
+
+
+//// LINE HANDLING FUNCTIONS ////
 
 /**
  * Gets the line from the file stream.
@@ -105,9 +176,32 @@ char* cli_read_line(void);
  */
 int cli_exec_line(char* line);
 
+
+
+//// LINE COMPLETION FUNCTIONS ////
+
+/**
+ * CLI completion function.
+ *
+ * @param text The text to complete.
+ * @param start The start index.
+ * @param end The end index.
+ * @return The completion.
+ */
 char** cli_completion(const char* text, int start, int end);
 
+/**
+ * CLI command generator.
+ *
+ * @param text The text to generate.
+ * @param state The state of the generator.
+ * @return The generated command.
+ */
 char* cli_command_generator(const char* text, int state);
+
+
+
+//// CLI HANDLER ////
 
 /**
  * CLI handler thread.
@@ -115,12 +209,5 @@ char* cli_command_generator(const char* text, int state);
  * @param arg Not used. Write dummy code for no warning.
  */
 void* handle_cli(void* arg);
-
-/**
- * Create history directory.
- *
- * @return The history directory.
- */
-const char* create_history_dir();
 
 #endif // __CLI_H

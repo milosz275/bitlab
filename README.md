@@ -96,6 +96,17 @@ The default configuration directory is `~/.bitlab`. The configuration directory 
 - `blocks.dat`: Block list file
 - `txs.dat`: Transaction list file -->
 
+Please feel free to link logs to your working directory:
+
+```bash
+mkdir -p logs
+ln -s ~/.bitlab/logs/bitlab.log logs/bitlab.log
+ln -s ~/.bitlab/history/cli_history.txt logs/cli_history.txt
+```
+
+> [!NOTE]
+> Running as root will create the configuration directory in `/root/.bitlab`.
+
 ## Features
 
 ### 1. Peer Discovery
@@ -113,7 +124,7 @@ Easily find and connect with peers using various methods:
 
 - **Peer Information:**
   - Print out IP addresses of discovered peers.
-  - Optionally, perform recursive discovery to find more peers.
+  - Perform recursive discovery to find given amounts of peers.
 
 ### 2. Connection to Peers
 
