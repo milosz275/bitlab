@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 
+#include "peer_queue.h"
 #include "state.h"
 #include "utils.h"
 #include "ip.h"
@@ -62,11 +63,18 @@ static cli_command cli_commands[] =
         .cli_command_usage = "history"
     },
     {
+        .cli_command = &cli_info,
+        .cli_command_name = "info",
+        .cli_command_brief_desc = "Prints program information.",
+        .cli_command_detailed_desc = " * info - Displays information about BitLab program and the host machine.",
+        .cli_command_usage = "info"
+    },
+    {
         .cli_command = &cli_peer_discovery,
         .cli_command_name = "peerdiscovery",
         .cli_command_brief_desc = "Starts peer discovery.",
-        .cli_command_detailed_desc = " * peerdiscovery - Initiates the peer discovery process (currently a work in progress).",
-        .cli_command_usage = "peerdiscovery [-d | --daemon]"
+        .cli_command_detailed_desc = " * peerdiscovery - Initiates the peer discovery proces. Use daemon argument to detach and run in the background. Run again to connect and wait for results. Use without arguments to run default DNS lookup. Add domain after -d or --dns to use custom DNS lookup. Use -h or --hardcoded to use hardcoded seeds of Bitcoin network IPs. Running without arguments will wait for results and running with other arguments before previous are generated will wait for the previous results.",
+        .cli_command_usage = "peerdiscovery [-d | --daemon] [-h | --hardcoded] [-l | --dns-lookup]"
     },
     {
         .cli_command = &cli_ping,
@@ -80,18 +88,34 @@ static cli_command cli_commands[] =
         .cli_command_name = "whoami",
         .cli_command_brief_desc = "Prints basic information about user.",
         .cli_command_detailed_desc = " * whoami - Displays username or full user information, including username, local IP, and public IP address when --full argument provided.",
-        .cli_command_usage = "whoami [-f | --full]"
+        .cli_command_usage = "whoami [-f | --full]",
     },
 }; // do not add NULLs at the end
 
 void print_help()
 {
-    int longest_usage_length = 0;
+    int longest_command_length = 0;
+    int longest_parameters_length = 0;
     for (int i = 0; i < CLI_COMMANDS_NUM; ++i)
     {
-        int length = strlen(cli_commands[i].cli_command_usage);
-        if (length > longest_usage_length)
-            longest_usage_length = length;
+        int cmd_length = 0;
+        int param_length = 0;
+
+        char* space_pos = strchr(cli_commands[i].cli_command_usage, ' ');
+        if (space_pos)
+        {
+            cmd_length = space_pos - cli_commands[i].cli_command_usage; // only command length
+            param_length = strlen(space_pos + 1); // parameters length
+        }
+        else
+        {
+            cmd_length = strlen(cli_commands[i].cli_command_usage);
+        }
+
+        if (cmd_length > longest_command_length)
+            longest_command_length = cmd_length;
+        if (param_length > longest_parameters_length)
+            longest_parameters_length = param_length;
     }
 
     int longest_description_length = 0;
@@ -102,22 +126,60 @@ void print_help()
             longest_description_length = length;
     }
 
-    char* dashes_before = (char*)malloc(longest_usage_length + 1);
-    memset(dashes_before, '-', longest_usage_length);
-    dashes_before[longest_usage_length] = '\0';
+    char* dashes_command = (char*)malloc(longest_command_length + 1);
+    memset(dashes_command, '-', longest_command_length);
+    dashes_command[longest_command_length] = '\0';
 
-    char* dashes_after = (char*)malloc(longest_description_length + 1);
-    memset(dashes_after, '-', longest_description_length);
-    dashes_after[longest_description_length] = '\0';
+    char* dashes_params = (char*)malloc(longest_parameters_length + 1);
+    memset(dashes_params, '-', longest_parameters_length);
+    dashes_params[longest_parameters_length] = '\0';
 
-    guarded_print_line("\033[1m%-*s | %s\033[0m", longest_usage_length, "Command", "Description");
-    guarded_print_line("%s-+-%s", dashes_before, dashes_after);
+    char* dashes_description = (char*)malloc(longest_description_length + 1);
+    memset(dashes_description, '-', longest_description_length);
+    dashes_description[longest_description_length] = '\0';
+
+    guarded_print_line("\033[1m%-*s | %-*s | %s\033[0m",
+        longest_command_length, "Command",
+        longest_parameters_length, "Parameters",
+        "Description");
+    guarded_print_line("%s-+-%s-+-%s",
+        dashes_command, dashes_params, dashes_description);
 
     for (int i = 0; i < CLI_COMMANDS_NUM; ++i)
-        guarded_print_line("%-*s | %s", longest_usage_length, cli_commands[i].cli_command_usage, cli_commands[i].cli_command_brief_desc);
+    {
+        const char* usage = cli_commands[i].cli_command_usage;
+        const char* description = cli_commands[i].cli_command_brief_desc;
 
-    free(dashes_before);
-    free(dashes_after);
+        // split the command and its parameters
+        char command[longest_command_length + 1];
+        char parameters[longest_parameters_length + 1];
+        char* params = strchr(usage, ' ');
+
+        if (params)
+        {
+            int cmd_length = params - usage;
+            strncpy(command, usage, cmd_length);
+            command[cmd_length] = '\0';
+            strncpy(parameters, params + 1, longest_parameters_length);
+            parameters[longest_parameters_length] = '\0';
+        }
+        else
+        {
+            strncpy(command, usage, longest_command_length);
+            command[longest_command_length] = '\0';
+            parameters[0] = '\0';
+        }
+
+        // print the row
+        guarded_print_line("%-*s | %-*s | %s",
+            longest_command_length, command,
+            longest_parameters_length, parameters,
+            description);
+    }
+
+    free(dashes_command);
+    free(dashes_params);
+    free(dashes_description);
 }
 
 void print_usage(const char* command_name)
@@ -329,65 +391,196 @@ int cli_get_ip(char** args)
     return 0;
 }
 
+int cli_info(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for info command: %s", args[0]);
+        print_usage("info");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    guarded_print_line("BitLab v%s", BITLAB_VERSION);
+    guarded_print_line("Built on %s %s", __DATE__, __TIME__);
+    print_program_state();
+    if (operation.peer_discovery)
+    {
+        guarded_print_line("Peer discovery: active");
+
+        if (operation.peer_discovery_in_progress)
+            guarded_print_line("Peer discovery in progress: true");
+        else
+            guarded_print_line("Peer discovery in progress: false");
+        if (operation.peer_discovery_succeeded)
+            guarded_print_line("Peer discovery succeeded: true");
+        else
+            guarded_print_line("Peer discovery succeeded: false");
+        if (operation.peer_discovery_daemon)
+            guarded_print_line("Peer discovery daemon: true");
+        else
+            guarded_print_line("Peer discovery daemon: false");
+        if (operation.peer_discovery_hardcoded_seeds)
+            guarded_print_line("Peer discovery hardcoded seeds: true");
+        else
+            guarded_print_line("Peer discovery hardcoded seeds: false");
+        if (operation.peer_discovery_dns_lookup)
+            guarded_print_line("Peer discovery DNS lookup: true");
+        else
+            guarded_print_line("Peer discovery DNS lookup: false");
+    }
+    else
+        guarded_print_line("Peer discovery: inactive");
+
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
 int cli_peer_discovery(char** args)
 {
     pthread_mutex_lock(&cli_mutex);
-    bool daemon = false;
 
+    // defaults
+    bool daemon = PEER_DISCOVERY_DEFAULT_DAEMON;
+    bool hardcoded_seeds = PEER_DISCOVERY_DEFAULT_HARDCODED_SEEDS;
+    bool dns_lookup = PEER_DISCOVERY_DEFAULT_DNS_LOOKUP;
+
+    bool daemon_set = false;
+    bool hardcoded_seeds_set = false;
+    bool dns_lookup_set = false;
+
+    // before checking program state, ensure command is only used with valid arguments to avoid confusion
     if (args[0] != NULL)
     {
         for (int i = 0; args[i] != NULL; ++i)
         {
             if (strcmp(args[i], "-d") == 0 || strcmp(args[i], "--daemon") == 0)
+            {
+                if (daemon_set)
+                {
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Daemon flag already set for peerdiscovery command");
+                    print_usage("peerdiscovery");
+                    pthread_mutex_unlock(&cli_mutex);
+                    return 1;
+                }
                 daemon = true;
+                daemon_set = true;
+            }
+            else if (strcmp(args[i], "-h") == 0 || strcmp(args[i], "--hardcoded") == 0)
+            {
+                if (hardcoded_seeds_set || dns_lookup_set)
+                {
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Hardcoded seeds or DNS lookup flag already set for peerdiscovery command");
+                    print_usage("peerdiscovery");
+                    pthread_mutex_unlock(&cli_mutex);
+                    return 1;
+                }
+                hardcoded_seeds = true;
+                dns_lookup = false;
+
+                hardcoded_seeds_set = true;
+            }
+            else if (strcmp(args[i], "-l") == 0 || strcmp(args[i], "--dns-lookup") == 0)
+            {
+                if (dns_lookup_set || hardcoded_seeds_set)
+                {
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "DNS lookup or hardcoded seeds flag already set for peerdiscovery command");
+                    print_usage("peerdiscovery");
+                    pthread_mutex_unlock(&cli_mutex);
+                    return 1;
+                }
+
+                if (args[i + 1] == NULL)
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Missing domain argument for DNS lookup flag for peerdiscovery command, default will be used");
+                if (args[i + 2] != NULL)
+                {
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Too many arguments for DNS lookup flag for peerdiscovery command");
+                    print_usage("peerdiscovery");
+                    pthread_mutex_unlock(&cli_mutex);
+                    return 1;
+                }
+
+                dns_lookup = true;
+                hardcoded_seeds = false;
+
+                dns_lookup_set = true;
+            }
             else
             {
-                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for peerdiscovery command: %s", args[i]);
-                print_usage("peerdiscovery");
-                pthread_mutex_unlock(&cli_mutex);
-                return 1;
+                if (dns_lookup_set)
+                {
+                    if (set_peer_discovery_dns_domain(args[i]))
+                        log_message(LOG_INFO, BITLAB_LOG, __FILE__, "Set DNS domain for peerdiscovery command: %s", args[i]);
+                    else
+                    {
+                        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Failed to set DNS domain for peerdiscovery command");
+                        pthread_mutex_unlock(&cli_mutex);
+                        return 1;
+                    }
+                }
+                else
+                {
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for peerdiscovery command: %s", args[i]);
+                    print_usage("peerdiscovery");
+                    pthread_mutex_unlock(&cli_mutex);
+                    return 1;
+                }
             }
         }
     }
 
-    if (get_peer_discovery())
+    // process current state and provided arguments if state allows
+    if (get_peer_discovery_in_progress())
     {
         if (daemon)
         {
             log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Peer discovery already in progress");
-            guarded_print_line("Peer discovery already in progress. Use \"peerdiscovery\" to check results later or \"info\" to see the status.");
+            guarded_print_line("Peer discovery already in progress. Use \"peerdiscovery\" to check results later or \"info\" to see the status. Any additional arguments will be ignored until the results are cleared.");
             pthread_mutex_unlock(&cli_mutex);
             return 1;
         }
         else // wait for peer discovery to finish
         {
-            guarded_print_line("Connected to peer discovery daemon. Waiting for results...");
-            while (get_peer_discovery())
+            guarded_print_line("Connected to peer discovery daemon. Arguments ignored if provided. Waiting for results...");
+            while (get_peer_discovery_in_progress())
                 usleep(100000); // 100 ms
+            usleep(1000000); // 1s
         }
     }
     else
     {
-        // [ ] Break if results are already set
+        // check if previous peer discovery attempt failed
+        bool results_successful = get_peer_discovery_succeeded();
+        if (get_peer_discovery() && !results_successful)
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Peer discovery previous attempt failed. Allowing new attempt...");
 
-        set_peer_discovery(true);
+        if (!results_successful) // results does not exist or failed and are not cleared
+        { // [ ] Add clearing results
+            // set states
+            set_peer_discovery(true);
+            set_peer_discovery_daemon(daemon);
+            set_peer_discovery_hardcoded_seeds(hardcoded_seeds);
+            set_peer_discovery_dns_lookup(dns_lookup);
 
-        if (daemon)
-        {
-            log_message(LOG_INFO, BITLAB_LOG, __FILE__, "Peer discovery in background");
-            guarded_print_line("Peer discovery started as daemon. Use \"peerdiscovery\" to check results or \"info\" to see the status.");
-            pthread_mutex_unlock(&cli_mutex);
-            return 0;
-        }
-        else // wait for peer discovery to finish
-        {
-            guarded_print_line("Peer discovery started. Waiting for results...");
-            while (get_peer_discovery())
-                usleep(100000); // 100 ms
+            if (daemon)
+            {
+                log_message(LOG_INFO, BITLAB_LOG, __FILE__, "Peer discovery in background");
+                guarded_print_line("Peer discovery started as daemon. Use \"peerdiscovery\" to check results or \"info\" to see the status.");
+                pthread_mutex_unlock(&cli_mutex);
+                return 0;
+            }
+            else // wait for peer discovery to finish
+            {
+                guarded_print_line("Peer discovery started. Waiting for results...");
+                while (get_peer_discovery_in_progress())
+                    usleep(100000); // 100 ms
+                usleep(1000000); // 1s
+            }
         }
     }
 
-    // [ ] Add peer discovery results
+    print_peer_queue();
 
     pthread_mutex_unlock(&cli_mutex);
     return 0;
