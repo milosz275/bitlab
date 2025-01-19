@@ -241,4 +241,4 @@ time_t get_start_time();
  */
 int get_elapsed_time();
 
-#endif
+#endif // __STATE_H
