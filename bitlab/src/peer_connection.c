@@ -412,23 +412,3 @@ int connect_to_peer(const char* ip_addr)
     printf("[+] Connection closed.\n");
     return 0;
 }
-
-// Simple main() to run the code
-int main(int argc, char* argv[])
-{
-    if (argc < 2) {
-        fprintf(stderr, "Usage: %s <ip-addr>\n", argv[0]);
-        return 1;
-    }
-
-    // Seed random for the version nonce
-    srand((unsigned int)time(NULL));
-
-    int ret = connect_to_peer(argv[1]);
-    if (ret != 0) {
-        fprintf(stderr, "[Error] Could not complete handshake with %s.\n", argv[1]);
-        return 1;
-    }
-
-    return 0;
-}
