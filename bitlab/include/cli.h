@@ -145,6 +145,13 @@ int cli_help(char** args);
  */
 int cli_ping(char** args);
 
+/**
+ * Connects to the specified IP address.
+ *
+ * @param args The IP address.
+ * @return The exit code.
+ */
+int cli_connect(char** args);
 
 
 //// LINE HANDLING FUNCTIONS ////

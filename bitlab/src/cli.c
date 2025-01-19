@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 
 #include "peer_queue.h"
+#include "peer_connection.h"
 #include "state.h"
 #include "utils.h"
 #include "ip.h"
@@ -75,6 +76,13 @@ static cli_command cli_commands[] =
         .cli_command_brief_desc = "Starts peer discovery.",
         .cli_command_detailed_desc = " * peerdiscovery - Initiates the peer discovery proces. Use daemon argument to detach and run in the background. Run again to connect and wait for results. Use without arguments to run default DNS lookup. Add domain after -d or --dns to use custom DNS lookup. Use -h or --hardcoded to use hardcoded seeds of Bitcoin network IPs. Running without arguments will wait for results and running with other arguments before previous are generated will wait for the previous results.",
         .cli_command_usage = "peerdiscovery [-d | --daemon] [-h | --hardcoded] [-l | --dns-lookup]"
+    },
+    {
+        .cli_command = &cli_connect,
+        .cli_command_name = "connect",
+        .cli_command_brief_desc = "Connects to the specified IP address.",
+        .cli_command_detailed_desc = " * connect - Connects to the specified IP address to establish a peer-to-peer connection.",
+        .cli_command_usage = "connect [IP address]"
     },
     {
         .cli_command = &cli_ping,
@@ -650,6 +658,37 @@ int cli_ping(char** args)
     snprintf(command, sizeof(command), "ping -c %d -i %d %s", count, sleep_time, ip_address);
     system(command);
 
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_connect(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "No arguments provided for connect command");
+        print_usage("connect");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    if (args[1] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Too many arguments for connect command");
+        print_usage("connect");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    char ip_address[BUFFER_SIZE];
+    if (is_numeric_address(args[0]))
+    {
+        strncpy(ip_address, args[0], BUFFER_SIZE - 1);
+        ip_address[BUFFER_SIZE - 1] = '\0';
+        guarded_print_line("Connecting to %s", ip_address);
+        connect_to_peer(ip_address);
+    }
+    else
+        guarded_print_line("Connect command uses numeric address for peer connection. Supplied argument: %s", args[0]);
     pthread_mutex_unlock(&cli_mutex);
     return 0;
 }
