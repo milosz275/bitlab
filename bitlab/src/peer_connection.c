@@ -11,6 +11,8 @@
 #include <stdint.h> // for uint64_t, etc.
 #include <openssl/sha.h> // For SHA-256
 
+#include <peer_connection.h>
+
 // Bitcoin mainnet magic bytes:
 #define BITCOIN_MAINNET_MAGIC 0xD9B4BEF9
 
@@ -235,6 +237,41 @@ static ssize_t send_pong(int sockfd, const unsigned char* nonce8)
     return send(sockfd, pong_msg, msg_len, 0);
 }
 
+ssize_t send_ping(int sockfd)
+{
+    // Generate an 8-byte nonce
+    uint64_t nonce = ((uint64_t)rand() << 32) | rand();
+
+    // Prepare the ping payload (8 bytes)
+    unsigned char ping_payload[8];
+    memcpy(ping_payload, &nonce, sizeof(nonce));
+
+    // Prepare the complete message (header + payload)
+    unsigned char ping_msg[sizeof(bitcoin_msg_header) + sizeof(ping_payload)];
+    size_t msg_len = build_message(
+        ping_msg,
+        sizeof(ping_msg),
+        "ping",
+        ping_payload,
+        sizeof(ping_payload)
+    );
+
+    if (msg_len == 0) {
+        fprintf(stderr, "[Error] Failed to build 'ping' message.\n");
+        return -1;
+    }
+
+    // Send the message to the peer
+    ssize_t bytes_sent = send(sockfd, ping_msg, msg_len, 0);
+    if (bytes_sent < 0) {
+        perror("[Error] Failed to send 'ping' message");
+        return -1;
+    }
+
+    printf("[+] Sent 'ping' message with nonce: %" PRIu64 "\n", nonce);
+    return bytes_sent;
+}
+
 int connect_to_peer(const char* ip_addr)
 {
     // Create the socket
@@ -302,7 +339,7 @@ int connect_to_peer(const char* ip_addr)
 
     // Read loop - up to 10 messages
     unsigned char recv_buf[2048];
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 20; i++) {
         ssize_t n = recv(sockfd, recv_buf, sizeof(recv_buf), 0);
         if (n < 0) {
             fprintf(stderr, "[Error] recv() failed: %s\n", strerror(errno));
@@ -379,6 +416,10 @@ int connect_to_peer(const char* ip_addr)
                     printf("[i] Peer wants to use compact blocks. "
                         "fAnnounce=%u, version=%" PRIu64 "\n",
                         fAnnounce, (uint64_t)cmpctVersion);
+                    while (1) {
+                        send_ping(sockfd);
+                        sleep(10);
+                    }
                 }
                 else {
                     printf("[!] 'sendcmpct' payload_len=%zu (expected 9)\n", payload_len);
