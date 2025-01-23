@@ -293,9 +293,13 @@ ssize_t send_ping(int sockfd)
     ssize_t bytes_sent = send(sockfd, ping_msg, msg_len, 0);
     if (bytes_sent < 0)
     {
+        log_to_file("peer_communication.log",
+                    "[Error] Failed to send 'ping' message: %s", strerror(errno));
         return -1;
     }
 
+    log_to_file("peer_communication.log",
+                "[+] Sent 'ping' message with nonce: %" PRIu64, nonce);
     return bytes_sent;
 }
 
