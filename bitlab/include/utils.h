@@ -64,4 +64,13 @@ void guarded_print(const char* format, ...);
  */
 void guarded_print_line(const char* format, ...);
 
+
+/**
+ * Log to file function. This function is used to log messages to a specified file.
+ *
+ * @param filename The name of the log file.
+ * @param format The format string.
+ */
+void log_to_file(const char* filename, const char* format, ...);
+
 #endif // __UTILS_H

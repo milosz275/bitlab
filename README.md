@@ -143,6 +143,8 @@ Stay connected with active peers and monitor peer availability:
 
 - **Network Alerts:**
   - Send `alert` messages to notify peers of important network events.
+  - `alert` has been deprecated because of security risks so it won't be implemented 
+    in this app. https://bitcoin.org/en/alert/2016-11-01-alert-retirement#reasons-for-retirement
 
 ### 4. Error Handling & Diagnostics
 

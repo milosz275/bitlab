@@ -52,5 +52,8 @@ logs/
 # VSCode
 *.vc.*
 
+# Jetbrains
+.idea/
+
 # BitLab history
 .*history.txt
