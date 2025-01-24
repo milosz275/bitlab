@@ -1,13 +1,13 @@
 #ifndef __PEER_QUEUE_H
 #define __PEER_QUEUE_H
 
-#define MAX_PEERS 10000
+#define MAX_PEERS 1000
 
 #include <stdbool.h>
 #include <stddef.h>
 
 /**
- * The peer structure used to store the peer information.
+ * The peer structure used to store the peer information obtained by peer discovery process.
  *
  * @param ip The IP address of the peer.
  * @param port The port of the peer.

@@ -13,4 +13,4 @@ void init_peer_discovery();
  */
 void* handle_peer_discovery(void* arg);
 
-#endif
+#endif // __PEER_DISCOVERY_H

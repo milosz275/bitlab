@@ -38,7 +38,14 @@
         "cli.h": "c",
         "stdio.h": "c",
         "network.h": "c",
-        "peer_queue.h": "c"
+        "peer_queue.h": "c",
+        "peer_discovery.h": "c",
+        "string.h": "c",
+        "peer_connection.h": "c",
+        "bit": "c",
+        "compare": "c",
+        "limits": "c",
+        "new": "c"
     },
     "C_Cpp.formatting": "vcFormat",
     "C_Cpp.autoAddFileAssociations": true,
