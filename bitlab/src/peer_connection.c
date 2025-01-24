@@ -15,7 +15,9 @@
 #include <stdbool.h>
 
 #include <peer_connection.h>
+#include <peer_queue.h>
 #include <utils.h>
+#include <ip.h>
 #include <bits/pthreadtypes.h>
 
 // Bitcoin mainnet magic bytes:
@@ -387,10 +389,27 @@ void send_getaddr_and_wait(int idx)
                     ip_type = "IPv4";
                 }
 
-                // Log the result if valid
-                log_message(LOG_INFO, log_filename, __FILE__,
-                    "Received address: %s:%u (%s) (timestamp: %u)",
-                    ip_str, port, ip_type, timestamp);
+                // Check if it's a valid IPv4 address
+                if (strcmp(ip_type, "IPv4") == 0 && is_valid_ipv4(ip_str) && !is_in_private_network(ip_str))
+                {
+                    // Guarded print of the IP address and port
+                    guarded_print_line("Valid IPv4 Peer: %s:%u (timestamp: %u)", ip_str, port, timestamp);
+
+                    // Add to peer queue
+                    add_peer_to_queue(ip_str, port);
+
+                    // Log the result if valid
+                    log_message(LOG_INFO, log_filename, __FILE__,
+                        "Received valid IPv4 address: %s:%u (timestamp: %u)",
+                        ip_str, port, timestamp);
+                }
+                else if (strcmp(ip_type, "IPv6") == 0)
+                {
+                    // Log the IPv6 addresses if needed
+                    log_message(LOG_INFO, log_filename, __FILE__,
+                        "Received IPv6 address: %s:%u (timestamp: %u)",
+                        ip_str, port, timestamp);
+                }
             }
 
             if (offset != payload_len)
@@ -400,6 +419,7 @@ void send_getaddr_and_wait(int idx)
                     payload_len - offset);
             }
         }
+
     }
     else
     {
