@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <time.h>
 
 #include "log.h"
@@ -72,5 +73,21 @@ void guarded_print_line(const char* format, ...);
  * @param format The format string.
  */
 void log_to_file(const char* filename, const char* format, ...);
+
+/**
+ * Convert a 64-bit integer from host byte order to network byte order.
+ *
+ * @param value The 64-bit integer in host byte order.
+ * @return The 64-bit integer in network byte order.
+ */
+uint64_t ntohll(uint64_t value);
+
+/**
+ * Convert a 64-bit integer from network byte order to host byte order.
+ *
+ * @param value The 64-bit integer in network byte order.
+ * @return The 64-bit integer in host byte order.
+ */
+size_t read_var_int(const unsigned char* data, uint64_t* value);
 
 #endif // __UTILS_H

@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
@@ -92,4 +94,44 @@ void log_to_file(const char* filename, const char* format, ...)
     funlockfile(log_file);
 
     fclose(log_file);
+}
+
+uint64_t ntohll(uint64_t value)
+{
+    if (__BYTE_ORDER == __LITTLE_ENDIAN)
+    {
+        return ((uint64_t)ntohl(value & 0xFFFFFFFF) << 32) | ntohl(value >> 32);
+    }
+    else
+    {
+        return value;
+    }
+}
+
+uint64_t read_var_int(const unsigned char* data, size_t* offset)
+{
+    uint64_t result = 0;
+    unsigned char first_byte = data[*offset];
+    *offset += 1;
+
+    if (first_byte < 0xfd)
+    {
+        result = first_byte;
+    }
+    else if (first_byte == 0xfd)
+    {
+        result = *(uint16_t*)(data + *offset);
+        *offset += 2;
+    }
+    else if (first_byte == 0xfe)
+    {
+        result = *(uint32_t*)(data + *offset);
+        *offset += 4;
+    }
+    else if (first_byte == 0xff)
+    {
+        result = *(uint64_t*)(data + *offset);
+        *offset += 8;
+    }
+    return result;
 }
