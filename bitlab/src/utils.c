@@ -11,6 +11,8 @@
 #include <sys/types.h>
 #include <sys/file.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
 
 void get_timestamp(char* buffer, size_t buffer_size)
 {
@@ -134,4 +136,10 @@ uint64_t read_var_int(const unsigned char* data, size_t* offset)
         *offset += 8;
     }
     return result;
+}
+
+int is_valid_ipv4(const char* ip_str)
+{
+    struct sockaddr_in sa;
+    return inet_pton(AF_INET, ip_str, &(sa.sin_addr)) == 1;
 }

@@ -90,4 +90,12 @@ uint64_t ntohll(uint64_t value);
  */
 size_t read_var_int(const unsigned char* data, uint64_t* value);
 
+/**
+ * Check if the IP address is valid.
+ *
+ * @param ip_str The IP address string.
+ * @return True if the IP address is valid, false otherwise.
+ */
+int is_valid_ipv4(const char* ip_str);
+
 #endif // __UTILS_H
