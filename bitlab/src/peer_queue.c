@@ -15,6 +15,20 @@ static pthread_mutex_t peer_queue_mutex = PTHREAD_MUTEX_INITIALIZER;
 void add_peer_to_queue(const char* ip, int port)
 {
     pthread_mutex_lock(&peer_queue_mutex);
+
+    // Check if the IP-port pair already exists in the queue
+    for (int i = peer_queue_start; i != peer_queue_end; i = (i + 1) % MAX_PEERS)
+    {
+        if (strcmp(peer_queue[i].ip, ip) == 0 && peer_queue[i].port == port)
+        {
+            // IP-port pair already exists, don't add it again
+            log_message(LOG_INFO, BITLAB_LOG, __FILE__, "Duplicate peer: %s:%d, not added", ip, port);
+            pthread_mutex_unlock(&peer_queue_mutex);
+            return;
+        }
+    }
+
+    // Check if the queue is full
     if ((peer_queue_end + 1) % MAX_PEERS == peer_queue_start)
     {
         log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Peer queue is full, cannot add peer: %s:%d", ip, port);
@@ -22,6 +36,7 @@ void add_peer_to_queue(const char* ip, int port)
         return;
     }
 
+    // Extract the port if not provided
     if (port == 0)
     {
         char* colon_pos = strrchr(ip, ':');
@@ -43,8 +58,10 @@ void add_peer_to_queue(const char* ip, int port)
         strncpy(peer_queue[peer_queue_end].ip, ip, sizeof(peer_queue[peer_queue_end].ip));
     }
 
+    // Add the IP-port pair to the queue
     peer_queue[peer_queue_end].port = port;
     peer_queue_end = (peer_queue_end + 1) % MAX_PEERS;
+
     pthread_mutex_unlock(&peer_queue_mutex);
 }
 
