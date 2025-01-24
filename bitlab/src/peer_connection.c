@@ -322,8 +322,37 @@ void send_getaddr_and_wait(int idx)
         {
             size_t offset = 0;
 
-            while (offset + 30 <= payload_len)
+            // Check if the payload length is sufficient to read the count of address entries
+            if (payload_len < 1)
             {
+                log_message(LOG_WARN, log_filename, __FILE__,
+                    "Insufficient payload length to read address count");
+                return;
+            }
+
+            // Read the count of address entries (var_int)
+            uint64_t count = read_var_int(payload_data + offset, &offset);
+
+            // Log the count of address entries
+            log_message(LOG_INFO, log_filename, __FILE__, "Address count: %llu", count);
+
+            // Ensure count does not exceed the maximum allowed entries
+            if (count > 1000)
+            {
+                log_message(LOG_WARN, log_filename, __FILE__,
+                    "Address count exceeds maximum allowed: %llu", count);
+                return;
+            }
+
+            for (uint64_t i = 0; i < count; i++)
+            {
+                if (offset + 30 > payload_len)
+                {
+                    log_message(LOG_WARN, log_filename, __FILE__,
+                        "Insufficient payload length for address entry");
+                    return;
+                }
+
                 // Read timestamp (4 bytes)
                 uint32_t timestamp;
                 memcpy(&timestamp, payload_data + offset, 4);
@@ -337,17 +366,6 @@ void send_getaddr_and_wait(int idx)
                 struct in6_addr ip_addr;
                 memcpy(&ip_addr, payload_data + offset, 16);
                 offset += 16;
-
-                // Convert IP to string
-                char ip_str2[INET6_ADDRSTRLEN];
-                inet_ntop(AF_INET6, &ip_addr, ip_str2, INET6_ADDRSTRLEN);
-
-                // Print the IP address
-                printf("%s\n", ip_str2);
-                printf("\n");
-                iters++;
-                if (iters == 10) return;
-                continue;
 
                 // Read port (2 bytes)
                 uint16_t port;
@@ -369,26 +387,17 @@ void send_getaddr_and_wait(int idx)
                     ip_type = "IPv4";
                 }
 
-                // Validate IP address and port
-                if (!IN6_IS_ADDR_UNSPECIFIED(&ip_addr) && port != 0)
-                {
-                    // Log the result if valid
-                    log_message(LOG_INFO, log_filename, __FILE__,
-                                "Received address: %s:%u (%s) (timestamp: %u)",
-                                ip_str, port, ip_type, timestamp);
-                }
-                else
-                {
-                    log_message(LOG_WARN, log_filename, __FILE__,
-                                "Invalid address data: %s:%u (%s) (timestamp: %u)",
-                                ip_str, port, ip_type, timestamp);
-                }
+                // Log the result if valid
+                log_message(LOG_INFO, log_filename, __FILE__,
+                    "Received address: %s:%u (%s) (timestamp: %u)",
+                    ip_str, port, ip_type, timestamp);
             }
+
             if (offset != payload_len)
             {
                 log_message(LOG_WARN, log_filename, __FILE__,
-                            "Remaining bytes after processing: %zu",
-                            payload_len - offset);
+                    "Remaining bytes after processing: %zu",
+                    payload_len - offset);
             }
         }
     }
