@@ -48,6 +48,7 @@ CMakeCache.txt
 # Logs
 *.log
 logs/
+logs
 
 # VSCode
 *.vc.*
