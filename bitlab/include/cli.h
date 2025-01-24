@@ -30,7 +30,6 @@ typedef struct
 } cli_command;
 
 
-
 //// PRINT FUNCTIONS ////
 
 /**
@@ -51,7 +50,6 @@ void print_usage(const char* command_name);
 void print_commands();
 
 
-
 //// HISTORY FUNCTIONS ////
 
 /**
@@ -60,7 +58,6 @@ void print_commands();
  * @return The history directory.
  */
 const char* create_history_dir();
-
 
 
 //// CLI COMMANDS ////
@@ -154,6 +151,9 @@ int cli_ping(char** args);
 int cli_connect(char** args);
 
 
+int cli_getaddr(char** args);
+
+
 //// LINE HANDLING FUNCTIONS ////
 
 /**
@@ -184,7 +184,6 @@ char* cli_read_line(void);
 int cli_exec_line(char* line);
 
 
-
 //// LINE COMPLETION FUNCTIONS ////
 
 /**
@@ -205,7 +204,6 @@ char** cli_completion(const char* text, int start, int end);
  * @return The generated command.
  */
 char* cli_command_generator(const char* text, int state);
-
 
 
 //// CLI HANDLER ////
