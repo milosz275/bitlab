@@ -215,9 +215,9 @@ void list_connected_nodes()
             guarded_print_line(" Is Connected: %d", nodes[i].is_connected);
             guarded_print_line(" Is operation in progress: %d",
                                nodes[i].operation_in_progress);
-            guarded_print_line(" Compact blocks: %d",
+            guarded_print_line(" Compact blocks: %lu",
                                nodes[i].compact_blocks);
-            guarded_print_line(" Fee_rate: %d",
+            guarded_print_line(" Fee_rate: %lu",
                                nodes[i].fee_rate);
         }
     }
@@ -816,7 +816,7 @@ void* peer_communication(void* arg)
                     memcpy(&cmpctversion, payload_data + 1, 8);
                     node->compact_blocks = cmpctversion;
                     log_message(LOG_INFO, log_filename, __FILE__,
-                                "compactblocks set to: %d, fannounce: %u",
+                                "compactblocks set to: %lu, fannounce: %u",
                                 cmpctversion, fannounce);
                 }
                 else
@@ -836,7 +836,7 @@ void* peer_communication(void* arg)
                     memcpy(&fee_rate, payload_data, 8);
                     node->fee_rate = fee_rate;
                     log_message(LOG_INFO, log_filename, __FILE__,
-                                "fee rate set to: %d", fee_rate);
+                                "fee rate set to: %lu", fee_rate);
                 }
                 else
                 {
