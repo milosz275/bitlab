@@ -46,7 +46,7 @@ typedef struct
     int socket_fd; // Socket file descriptor for communication
     pthread_t thread; // Thread assigned to this connection
     int is_connected; // Connection status
-    int is_cooking; // is something cooking
+    int operation_in_progress; // is something cooking
 } Node;
 
 // Maximum number of peers to track
@@ -61,7 +61,7 @@ Node nodes[MAX_PEERS];
  *   into `out[4]` as the checksum.
  */
 static void compute_checksum(const unsigned char* payload, size_t payload_len,
-    unsigned char out[4])
+                             unsigned char out[4])
 {
     unsigned char hash1[SHA256_DIGEST_LENGTH];
     unsigned char hash2[SHA256_DIGEST_LENGTH];
@@ -199,6 +199,24 @@ static size_t build_message(
     return sizeof(header) + payload_len;
 }
 
+void list_connected_nodes()
+{
+    for (int i = 0; i < MAX_PEERS; i++)
+    {
+        if (nodes[i].is_connected == 1)
+        {
+            guarded_print_line("Node %d:", i);
+            guarded_print_line("IP Address: %s", nodes[i].ip_address);
+            guarded_print_line("Port: %u", nodes[i].port);
+            guarded_print_line("Socket FD: %d", nodes[i].socket_fd);
+            guarded_print_line("Thread ID: %lu", nodes[i].thread);
+            guarded_print_line("Is Connected: %d", nodes[i].is_connected);
+            guarded_print_line("Is operation in progress: %d",
+                               nodes[i].operation_in_progress);
+        }
+    }
+}
+
 void send_getaddr_and_wait(int idx)
 {
     if (idx < 0 || idx >= MAX_PEERS || !nodes[idx].is_connected)
@@ -210,12 +228,12 @@ void send_getaddr_and_wait(int idx)
     Node* node = &nodes[idx];
     char log_filename[256];
     snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
-        node->ip_address);
+             node->ip_address);
 
     // Build the 'getaddr' message
     unsigned char getaddr_msg[sizeof(bitcoin_msg_header)];
     size_t msg_len = build_message(getaddr_msg, sizeof(getaddr_msg), "getaddr", NULL,
-        0);
+                                   0);
     if (msg_len == 0)
     {
         fprintf(stderr, "[Error] Failed to build 'getaddr' message.\n");
@@ -227,12 +245,12 @@ void send_getaddr_and_wait(int idx)
     if (bytes_sent < 0)
     {
         log_message(LOG_INFO, log_filename, __FILE__,
-            "[Error] Failed to send 'getaddr' message: %s", strerror(errno));
+                    "[Error] Failed to send 'getaddr' message: %s", strerror(errno));
         return;
     }
 
     log_message(LOG_INFO, log_filename, __FILE__, "Sent 'getaddr' message.");
-    node->is_cooking = 1;
+    node->operation_in_progress = 1;
 
     // Wait for 10 seconds for a response
     struct timeval tv;
@@ -249,13 +267,13 @@ void send_getaddr_and_wait(int idx)
     {
         log_message(LOG_INFO, log_filename, __FILE__, "first while receiving");
         bytes_received = recv(node->socket_fd, buffer + total_bytes_received,
-            sizeof(buffer) - total_bytes_received - 1, 0);
+                              sizeof(buffer) - total_bytes_received - 1, 0);
         if (bytes_received <= 0)
         {
             log_message(LOG_INFO, log_filename, __FILE__, "Recv 1 failed: %s",
-                strerror(errno));
+                        strerror(errno));
             node->is_connected = 0;
-            node->is_cooking = 0;
+            node->operation_in_progress = 0;
             return;
         }
         total_bytes_received += bytes_received;
@@ -271,29 +289,29 @@ void send_getaddr_and_wait(int idx)
     {
         log_message(LOG_INFO, log_filename, __FILE__, "second while receiving");
         bytes_received = recv(node->socket_fd, buffer + total_bytes_received,
-            sizeof(buffer) - total_bytes_received - 1, 0);
+                              sizeof(buffer) - total_bytes_received - 1, 0);
         if (bytes_received <= 0)
         {
             if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
                 log_message(LOG_INFO, log_filename, __FILE__,
-                    "second while receiving inside if errno");
+                            "second while receiving inside if errno");
                 // Resource temporarily unavailable, continue receiving
 
                 if (++retry_count >= max_retries)
                 {
                     log_message(LOG_WARN, log_filename, __FILE__,
-                        "Max retries reached, stopping recv.");
+                                "Max retries reached, stopping recv.");
                     node->is_connected = 0;
-                    node->is_cooking = 0;
+                    node->operation_in_progress = 0;
                     break;
                 }
                 continue;
             }
             log_message(LOG_INFO, log_filename, __FILE__, "Recv failed: %s",
-                strerror(errno));
+                        strerror(errno));
             node->is_connected = 0;
-            node->is_cooking = 0;
+            node->operation_in_progress = 0;
             return;
         }
         total_bytes_received += bytes_received;
@@ -308,7 +326,7 @@ void send_getaddr_and_wait(int idx)
         memcpy(cmd_name, hdr->command, 12);
 
         log_message(LOG_INFO, log_filename, __FILE__, "[!] Received %s command ",
-            cmd_name);
+                    cmd_name);
 
         const unsigned char* payload_data = (unsigned char*)buffer + sizeof(
             bitcoin_msg_header);
@@ -328,7 +346,7 @@ void send_getaddr_and_wait(int idx)
             if (payload_len < 1)
             {
                 log_message(LOG_WARN, log_filename, __FILE__,
-                    "Insufficient payload length to read address count");
+                            "Insufficient payload length to read address count");
                 return;
             }
 
@@ -342,7 +360,7 @@ void send_getaddr_and_wait(int idx)
             if (count > 1000)
             {
                 log_message(LOG_WARN, log_filename, __FILE__,
-                    "Address count exceeds maximum allowed: %llu", count);
+                            "Address count exceeds maximum allowed: %llu", count);
                 return;
             }
 
@@ -351,7 +369,7 @@ void send_getaddr_and_wait(int idx)
                 if (offset + 30 > payload_len)
                 {
                     log_message(LOG_WARN, log_filename, __FILE__,
-                        "Insufficient payload length for address entry");
+                                "Insufficient payload length for address entry");
                     return;
                 }
 
@@ -390,44 +408,45 @@ void send_getaddr_and_wait(int idx)
                 }
 
                 // Check if it's a valid IPv4 address
-                if (strcmp(ip_type, "IPv4") == 0 && is_valid_ipv4(ip_str) && !is_in_private_network(ip_str))
+                if (strcmp(ip_type, "IPv4") == 0 && is_valid_ipv4(ip_str) && !
+                    is_in_private_network(ip_str))
                 {
                     // Guarded print of the IP address and port
-                    guarded_print_line("Valid IPv4 Peer: %s:%u (timestamp: %u)", ip_str, port, timestamp);
+                    guarded_print_line("Valid IPv4 Peer: %s:%u (timestamp: %u)", ip_str,
+                                       port, timestamp);
 
                     // Add to peer queue
                     add_peer_to_queue(ip_str, port);
 
                     // Log the result if valid
                     log_message(LOG_INFO, log_filename, __FILE__,
-                        "Received valid IPv4 address: %s:%u (timestamp: %u)",
-                        ip_str, port, timestamp);
+                                "Received valid IPv4 address: %s:%u (timestamp: %u)",
+                                ip_str, port, timestamp);
                 }
                 else if (strcmp(ip_type, "IPv6") == 0)
                 {
                     // Log the IPv6 addresses if needed
                     log_message(LOG_INFO, log_filename, __FILE__,
-                        "Received IPv6 address: %s:%u (timestamp: %u)",
-                        ip_str, port, timestamp);
+                                "Received IPv6 address: %s:%u (timestamp: %u)",
+                                ip_str, port, timestamp);
                 }
             }
 
             if (offset != payload_len)
             {
                 log_message(LOG_WARN, log_filename, __FILE__,
-                    "Remaining bytes after processing: %zu",
-                    payload_len - offset);
+                            "Remaining bytes after processing: %zu",
+                            payload_len - offset);
             }
         }
-
     }
     else
     {
         log_message(LOG_WARN, log_filename, __FILE__,
-            "else hdr->magic ");
+                    "else hdr->magic ");
     }
 
-    node->is_cooking = 0;
+    node->operation_in_progress = 0;
 }
 
 /**
@@ -467,7 +486,7 @@ static ssize_t send_verack(int sockfd)
     memcpy(verack_msg, &verack_header, sizeof(verack_header));
 
     log_message(LOG_INFO, BITLAB_LOG, __FILE__,
-        "sent verack");
+                "sent verack");
     // log_to_file('test.log', 'sent verack');
     // Send to peer
     return send(sockfd, verack_msg, sizeof(verack_header), 0);
@@ -528,17 +547,17 @@ ssize_t send_ping(int sockfd, const char* ip_addr)
 
     char log_filename[256];
     snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
-        ip_addr);
+             ip_addr);
     ssize_t bytes_sent = send(sockfd, ping_msg, msg_len, 0);
     if (bytes_sent < 0)
     {
         log_message(LOG_INFO, log_filename, __FILE__,
-            "[Error] Failed to send 'ping' message: %s", strerror(errno));
+                    "[Error] Failed to send 'ping' message: %s", strerror(errno));
         return -1;
     }
 
     log_message(LOG_INFO, log_filename, __FILE__,
-        "Sent 'ping' message with nonce: %llu", (unsigned long long)nonce);
+                "Sent 'ping' message with nonce: %llu", (unsigned long long)nonce);
     return bytes_sent;
 }
 
@@ -556,9 +575,9 @@ void* peer_communication(void* arg)
 
     char log_filename[256];
     snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
-        node->ip_address);
+             node->ip_address);
     log_message(LOG_INFO, log_filename, __FILE__,
-        "started peer communication with node with ip: %s", node->ip_address);
+                "started peer communication with node with ip: %s", node->ip_address);
 
     char buffer[2048];
     struct timeval tv;
@@ -572,7 +591,7 @@ void* peer_communication(void* arg)
     {
         // Check the magic
         ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer) - 1, 0);
-        while (node->is_cooking)
+        while (node->operation_in_progress)
         {
             sleep(1);
         }
@@ -583,7 +602,7 @@ void* peer_communication(void* arg)
         if (bytes_received < 0)
         {
             log_message(LOG_INFO, log_filename, __FILE__,
-                "Recv failed: %s", strerror((errno)));
+                        "Recv failed: %s", strerror((errno)));
             time_t current_time = time(NULL);
             if (difftime(current_time, last_ping_time) >= 5)
             {
@@ -596,12 +615,12 @@ void* peer_communication(void* arg)
         {
             buffer[bytes_received] = '\0'; // Null-terminate the received data
             log_message(LOG_INFO, log_filename, __FILE__,
-                "Received bytes: %s", buffer);
+                        "Received bytes: %s", buffer);
         }
         else if (bytes_received == 0)
         {
             log_message(LOG_INFO, log_filename, __FILE__,
-                "Connection closed by peer %s", node->ip_address);
+                        "Connection closed by peer %s", node->ip_address);
             node->is_connected = 0;
             break;
         }
@@ -609,8 +628,8 @@ void* peer_communication(void* arg)
         if (bytes_received < (ssize_t)sizeof(bitcoin_msg_header))
         {
             log_message(LOG_INFO, log_filename, __FILE__,
-                "[!] Received %zd bytes (less than header size 24).",
-                bytes_received);
+                        "[!] Received %zd bytes (less than header size 24).",
+                        bytes_received);
             continue;
         }
 
@@ -623,8 +642,8 @@ void* peer_communication(void* arg)
             memcpy(cmd_name, hdr->command, 12);
 
             log_message(LOG_INFO, log_filename, __FILE__,
-                "[!] Received %s command ",
-                cmd_name);
+                        "[!] Received %s command ",
+                        cmd_name);
 
 
             // Determine the payload length & pointer
@@ -635,8 +654,8 @@ void* peer_communication(void* arg)
             if (bytes_received < (ssize_t)(sizeof(bitcoin_msg_header) + payload_len))
             {
                 log_message(LOG_INFO, log_filename, __FILE__,
-                    "Incomplete message; got %zd bytes, expected %zu.\n",
-                    bytes_received, sizeof(bitcoin_msg_header) + payload_len);
+                            "Incomplete message; got %zd bytes, expected %zu.\n",
+                            bytes_received, sizeof(bitcoin_msg_header) + payload_len);
                 continue;
             }
         }
@@ -656,7 +675,7 @@ void* peer_communication(void* arg)
 void create_peer_thread(Node* node)
 {
     log_to_file("peer_communication.log",
-        "[+] start peer communication with node 3: %d", node->socket_fd);
+                "[+] start peer communication with node 3: %d", node->socket_fd);
     if (pthread_create(&node->thread, NULL, peer_communication, (void*)node) != 0)
     {
         perror("Failed to create thread for peer");
@@ -664,7 +683,7 @@ void create_peer_thread(Node* node)
     }
 
     log_to_file("peer_communication.log",
-        "[+] start peer communication with node 4: %d", node->socket_fd);
+                "[+] start peer communication with node 4: %d", node->socket_fd);
     if (pthread_detach(node->thread) != 0)
     {
         perror("Failed to detach thread for peer");
@@ -723,7 +742,7 @@ int connect_to_peer(const char* ip_addr)
     if (inet_pton(AF_INET, ip_addr, &servaddr.sin_addr) <= 0)
     {
         fprintf(stderr, "[Error] inet_pton failed (IP '%s'): %s\n",
-            ip_addr, strerror(errno));
+                ip_addr, strerror(errno));
         close(sockfd);
         return -1;
     }
@@ -733,7 +752,7 @@ int connect_to_peer(const char* ip_addr)
     if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
     {
         fprintf(stderr, "[Error] connect to %s:%d failed: %s\n",
-            ip_addr, BITCOIN_MAINNET_PORT, strerror(errno));
+                ip_addr, BITCOIN_MAINNET_PORT, strerror(errno));
         close(sockfd);
         return -1;
     }
@@ -825,7 +844,7 @@ int connect_to_peer(const char* ip_addr)
             if (n < (ssize_t)(sizeof(bitcoin_msg_header) + payload_len))
             {
                 printf("[!] Incomplete message; got %zd bytes, expected %zu.\n",
-                    n, sizeof(bitcoin_msg_header) + payload_len);
+                       n, sizeof(bitcoin_msg_header) + payload_len);
                 continue;
             }
 
@@ -909,7 +928,7 @@ int connect_to_peer(const char* ip_addr)
             {
                 // Unhandled command
                 printf("[!] Unhandled command: '%s' (payload size=%u)\n",
-                    cmd_name, hdr->length);
+                       cmd_name, hdr->length);
             }
         }
         else
@@ -925,14 +944,14 @@ int connect_to_peer(const char* ip_addr)
             {
                 printf("connected to node: %s | %d.\n", ip_addr, j);
                 log_to_file("peer_communication.log",
-                    "[+] assign with node: %d", sockfd);
+                            "[+] assign with node: %d", sockfd);
                 initialize_node(&nodes[j], ip_addr, 8333, sockfd);
                 log_to_file("peer_communication.log",
-                    "[+] out here: %d", nodes[j].socket_fd);
+                            "[+] out here: %d", nodes[j].socket_fd);
                 create_peer_thread(&nodes[j]);
                 char log_filename[256];
                 snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
-                    ip_addr);
+                         ip_addr);
                 init_logging(log_filename);
                 break;
                 // return 0;

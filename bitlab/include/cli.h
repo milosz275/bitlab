@@ -150,6 +150,7 @@ int cli_ping(char** args);
  */
 int cli_connect(char** args);
 
+int cli_list(char** args);
 
 int cli_getaddr(char** args);
 

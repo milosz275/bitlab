@@ -110,13 +110,19 @@ static cli_command cli_commands[] =
         " * whoami - Displays username or full user information, including username, local IP, and public IP address when --full argument provided.",
         .cli_command_usage = "whoami [-f | --full]",
     },
-
     {
         .cli_command = &cli_getaddr,
         .cli_command_name = "getaddr",
         .cli_command_brief_desc = "Gets addresses",
         .cli_command_detailed_desc = " * pretty self explanatory, eh?",
         .cli_command_usage = "getaddr [idx of node, cmd list not implemented good luck]"
+    },
+    {
+        .cli_command = &cli_list,
+        .cli_command_name = "list",
+        .cli_command_brief_desc = "list connected nodes",
+        .cli_command_detailed_desc = " * list connected nodes",
+        .cli_command_usage = "list"
     },
 }; // do not add NULLs at the end
 
@@ -778,6 +784,23 @@ int cli_getaddr(char** args)
     pthread_mutex_unlock(&cli_mutex);
     return 0;
 }
+
+int cli_list(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                    "Too many arguments for getaddr command");
+        print_usage("getaddr");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    list_connected_nodes();
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
 
 int cli_clear(char** args)
 {
