@@ -23,7 +23,7 @@ void add_peer_to_queue(const char* ip, int port)
         {
             // IP-port pair already exists, don't add it again
             log_message(LOG_INFO, BITLAB_LOG, __FILE__,
-                        "Duplicate peer: %s:%d, not added", ip, port);
+                "Duplicate peer: %s:%d, not added", ip, port);
             pthread_mutex_unlock(&peer_queue_mutex);
             return;
         }
@@ -33,7 +33,7 @@ void add_peer_to_queue(const char* ip, int port)
     if ((peer_queue_end + 1) % MAX_PEERS == peer_queue_start)
     {
         log_message(LOG_WARN, BITLAB_LOG, __FILE__,
-                    "Peer queue is full, cannot add peer: %s:%d", ip, port);
+            "Peer queue is full, cannot add peer: %s:%d", ip, port);
         pthread_mutex_unlock(&peer_queue_mutex);
         return;
     }
@@ -51,7 +51,7 @@ void add_peer_to_queue(const char* ip, int port)
         else
         {
             log_message(LOG_WARN, BITLAB_LOG, __FILE__,
-                        "Invalid IP format, cannot extract port: %s", ip);
+                "Invalid IP format, cannot extract port: %s", ip);
             pthread_mutex_unlock(&peer_queue_mutex);
             return;
         }
@@ -59,7 +59,7 @@ void add_peer_to_queue(const char* ip, int port)
     else
     {
         strncpy(peer_queue[peer_queue_end].ip, ip,
-                sizeof(peer_queue[peer_queue_end].ip));
+            sizeof(peer_queue[peer_queue_end].ip));
     }
 
     // Add the IP-port pair to the queue
@@ -86,7 +86,7 @@ bool get_peer_from_queue(char* buffer, size_t buffer_size)
         return false;
     }
     snprintf(buffer, buffer_size, "%s:%d", peer_queue[peer_queue_start].ip,
-             peer_queue[peer_queue_start].port);
+        peer_queue[peer_queue_start].port);
     peer_queue_start = (peer_queue_start + 1) % MAX_PEERS;
     pthread_mutex_unlock(&peer_queue_mutex);
     return true;
@@ -126,8 +126,8 @@ Peer* get_peer_queue(int* count)
     }
 
     int size = (peer_queue_end >= peer_queue_start)
-                   ? (peer_queue_end - peer_queue_start)
-                   : (MAX_PEERS - peer_queue_start + peer_queue_end);
+        ? (peer_queue_end - peer_queue_start)
+        : (MAX_PEERS - peer_queue_start + peer_queue_end);
 
     Peer* peers = malloc(size * sizeof(Peer));
     if (peers == NULL)
@@ -138,7 +138,7 @@ Peer* get_peer_queue(int* count)
     }
 
     for (int i = 0, j = peer_queue_start; j != peer_queue_end; j = (j + 1) % MAX_PEERS,
-         i++)
+        i++)
     {
         peers[i] = peer_queue[j];
     }
