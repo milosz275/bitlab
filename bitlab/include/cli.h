@@ -166,6 +166,16 @@ int cli_list(char** args);
  */
 int cli_getaddr(char** args);
 
+/**
+ * @brief Disconnects from the specified node.
+ *
+ * This function disconnects from the node specified by the given node ID. It closes the socket,
+ * terminates the thread, and logs the disconnection.
+ *
+ * @param args The arguments passed to the function should contain the node ID.
+ * @return The exit code.
+ */
+int cli_disconnect(char** args);
 
 //// LINE HANDLING FUNCTIONS ////
 

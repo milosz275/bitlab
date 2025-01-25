@@ -713,19 +713,17 @@ void* peer_communication(void* arg)
 
             continue;
         }
-        if (bytes_received > 0)
-        {
-            buffer[bytes_received] = '\0'; // Null-terminate the received data
-            log_message(LOG_INFO, log_filename, __FILE__,
-                        "Received bytes: %s", buffer);
-        }
-        else if (bytes_received == 0)
+        if (bytes_received == 0)
         {
             log_message(LOG_INFO, log_filename, __FILE__,
                         "Connection closed by peer %s", node->ip_address);
             node->is_connected = 0;
             break;
         }
+
+        buffer[bytes_received] = '\0'; // Null-terminate the received data
+        log_message(LOG_INFO, log_filename, __FILE__,
+                    "Received bytes: %s", buffer);
         // If we have at least a full header, parse it
         if (bytes_received < (ssize_t)sizeof(bitcoin_msg_header))
         {
@@ -1079,3 +1077,34 @@ int connect_to_peer(const char* ip_addr)
     }
     return 0;
 }
+
+void disconnect(int node_id)
+{
+    if (node_id < 0 || node_id >= MAX_NODES || !nodes[node_id].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node ID or node not connected.\n");
+        return;
+    }
+
+    Node* node = &nodes[node_id];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
+             node->ip_address);
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Disconnecting from node %s:%u",
+                node->ip_address, node->port);
+
+    close(node->socket_fd);
+
+    node->is_connected = 0;
+
+    if (pthread_cancel(node->thread) != 0)
+    {
+        perror("Failed to cancel thread for peer");
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__,
+                "Successfully disconnected from node %s:%u", node->ip_address,
+                node->port);
+}
+

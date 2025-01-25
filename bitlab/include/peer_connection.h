@@ -29,4 +29,14 @@ void send_getaddr_and_wait(int idx);
  */
 int connect_to_peer(const char* ip_addr);
 
+/**
+ * @brief Disconnects from the node specified by the node ID.
+ *
+ * This function disconnects from the node specified by the given node ID. It closes the socket,
+ * terminates the thread, and logs the disconnection.
+ *
+ * @param node_id The ID of the node in the nodes array to disconnect from.
+ */
+void disconnect(int node_id);
+
 #endif // __PEER_CONNECTION_H

@@ -124,6 +124,13 @@ static cli_command cli_commands[] =
         .cli_command_detailed_desc = " * list connected nodes",
         .cli_command_usage = "list"
     },
+    {
+        .cli_command = &cli_disconnect,
+        .cli_command_name = "disconnect",
+        .cli_command_brief_desc = "disconnect from node",
+        .cli_command_detailed_desc = " * disconnect - disconnect from node",
+        .cli_command_usage = "disconnect [idx of node]"
+    },
 }; // do not add NULLs at the end
 
 void print_help()
@@ -781,6 +788,32 @@ int cli_getaddr(char** args)
     int idx = atoi(args[0]);
     guarded_print_line("getaddr to %d", idx);
     send_getaddr_and_wait(idx);
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_disconnect(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                    "No arguments provided for getaddr command");
+        print_usage("getaddr");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    if (args[1] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                    "Too many arguments for getaddr command");
+        print_usage("getaddr");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    int idx = atoi(args[0]);
+    guarded_print_line("disconnect from node %d", idx);
+    disconnect(idx);
     pthread_mutex_unlock(&cli_mutex);
     return 0;
 }
