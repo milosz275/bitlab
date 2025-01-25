@@ -127,69 +127,69 @@ ln -s ~/.bitlab/history/cli_history.txt logs/cli_history.txt
 Easily find and connect with peers using various methods:
 
 - **Discovery Options:**
-    - Via Command Line Parameters
-    - Predefined Seeds
-    - DNS Lookup
+        - Via Command Line Parameters
+        - Predefined Seeds
+        - DNS Lookup
 
 - **Bootstrapping with Peer Data:**
-    - Use the `getaddr` message to request an `addr` message containing active peers.
-    - `addr` messages will provide a list of IP addresses and ports.
+        - Use the `getaddr` message to request an `addr` message containing active peers.
+        - `addr` messages will provide a list of IP addresses and ports.
 
 - **Peer Information:**
-    - Print out IP addresses of discovered peers.
-    - Perform recursive discovery to find given amounts of peers.
+        - Print out IP addresses of discovered peers.
+        - Perform recursive discovery to find given amounts of peers.
 
 ### 2. Connection to Peers
 
 Seamlessly establish and maintain connections with peers:
 
 - **Initial Connection:**
-    - Exchange `version` messages to introduce versions.
-    - Follow up with `verack` messages to confirm the connection is successful.
+        - Exchange `version` messages to introduce versions.
+        - Follow up with `verack` messages to confirm the connection is successful.
 
 ### 3. Peer Maintenance
 
 Stay connected with active peers and monitor peer availability:
 
 - **Peer Availability Checks:**
-    - Use `ping` messages to check peer responsiveness and connection health.
+        - Use `ping` messages to check peer responsiveness and connection health.
 
 - **Network Alerts:**
-    - Send `alert` messages to notify peers of important network events.
-    - `alert` has been deprecated because of security risks so it won't be implemented
-      in this
-      app. [documentation thread](https://bitcoin.org/en/alert/2016-11-01-alert-retirement#reasons-for-retirement)
+        - Send `alert` messages to notify peers of important network events.
+        - `alert` has been deprecated because of security risks so it won't be implemented
+        in this
+        app. [documentation thread](https://bitcoin.org/en/alert/2016-11-01-alert-retirement#reasons-for-retirement)
 
 ### 4. Error Handling & Diagnostics
 
 Handle errors gracefully and communicate network events transparently:
 
 - **Error Reporting:**
-    - Use `reject` messages to report any client-side errors.
-    - Deprecated in Bitcoin Core 0.18.0.
-      source: https://developer.bitcoin.org/reference/p2p_networking.html#reject
+        - Use `reject` messages to report any client-side errors.
+        - Deprecated in Bitcoin Core 0.18.0.
+        source: [documentation thread](https://developer.bitcoin.org/reference/p2p_networking.html#reject)
 
 - **Diagnostics:**
-    - Use `message` messages to log diagnostics and troubleshooting information.
+        - Use `message` messages to log diagnostics and troubleshooting information.
 
 ### 5. Block Inventory, Exchange, and Transactions
 
 Efficiently share and request blocks and transactions with peers:
 
 - **Inventory Announcements:**
-    - Use `inv` messages to announce available blocks or transactions.
+        - Use `inv` messages to announce available blocks or transactions.
 
 - **Requesting Data:**
-    - `getdata` message: Request specific blocks or transactions by their hash.
-    - `getblocks` message: Request an inventory list for blocks within a specified
-      range.
-    - `getheaders` message: Request headers of blocks in a specific range for easy
-      synchronization.
+        - `getdata` message: Request specific blocks or transactions by their hash.
+        - `getblocks` message: Request an inventory list for blocks within a specified
+        range.
+        - `getheaders` message: Request headers of blocks in a specific range for easy
+        synchronization.
 
 - **Transaction and Block Sharing:**
-    - `tx` message: Announce new transactions.
-    - `block` message: Send or advertise a specific block.
-    - `headers` message: Share up to 2,000 block headers for faster synchronization.
+        - `tx` message: Announce new transactions.
+        - `block` message: Send or advertise a specific block.
+        - `headers` message: Share up to 2,000 block headers for faster synchronization.
 
 ## Acknowledgements
 
