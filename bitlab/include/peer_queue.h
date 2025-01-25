@@ -52,4 +52,9 @@ void clear_peer_queue();
  */
 void print_peer_queue();
 
+/**
+ * Get the peer queue.
+ */
+Peer* get_peer_queue(int* count);
+
 #endif // __PEER_QUEUE_H

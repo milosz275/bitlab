@@ -114,8 +114,8 @@ static cli_command cli_commands[] =
         .cli_command = &cli_getaddr,
         .cli_command_name = "getaddr",
         .cli_command_brief_desc = "Gets addresses",
-        .cli_command_detailed_desc = " * pretty self explanatory, eh?",
-        .cli_command_usage = "getaddr [idx of node, cmd list not implemented good luck]"
+        .cli_command_detailed_desc = " * getaddr - Send 'getaddr' command to peer",
+        .cli_command_usage = "getaddr [idx of node]"
     },
     {
         .cli_command = &cli_list,

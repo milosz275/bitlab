@@ -46,14 +46,16 @@ typedef struct
     int socket_fd; // Socket file descriptor for communication
     pthread_t thread; // Thread assigned to this connection
     int is_connected; // Connection status
-    int operation_in_progress; // is something cooking
+    int operation_in_progress; // is operation in progress
+    uint64_t compact_blocks; // Does peer want to use compact blocks
+    uint64_t fee_rate; // Min fee rate in sat/kB of transaction that peer allows
 } Node;
 
 // Maximum number of peers to track
-#define MAX_PEERS 100
+#define MAX_NODES 100
 
 // Global array to hold connected nodes
-Node nodes[MAX_PEERS];
+Node nodes[MAX_NODES];
 
 /**
  * compute_checksum:
@@ -201,25 +203,29 @@ static size_t build_message(
 
 void list_connected_nodes()
 {
-    for (int i = 0; i < MAX_PEERS; i++)
+    for (int i = 0; i < MAX_NODES; i++)
     {
         if (nodes[i].is_connected == 1)
         {
             guarded_print_line("Node %d:", i);
-            guarded_print_line("IP Address: %s", nodes[i].ip_address);
-            guarded_print_line("Port: %u", nodes[i].port);
-            guarded_print_line("Socket FD: %d", nodes[i].socket_fd);
-            guarded_print_line("Thread ID: %lu", nodes[i].thread);
-            guarded_print_line("Is Connected: %d", nodes[i].is_connected);
-            guarded_print_line("Is operation in progress: %d",
+            guarded_print_line(" IP Address: %s", nodes[i].ip_address);
+            guarded_print_line(" Port: %u", nodes[i].port);
+            guarded_print_line(" Socket FD: %d", nodes[i].socket_fd);
+            guarded_print_line(" Thread ID: %lu", nodes[i].thread);
+            guarded_print_line(" Is Connected: %d", nodes[i].is_connected);
+            guarded_print_line(" Is operation in progress: %d",
                                nodes[i].operation_in_progress);
+            guarded_print_line(" Compact blocks: %d",
+                               nodes[i].compact_blocks);
+            guarded_print_line(" Fee_rate: %d",
+                               nodes[i].fee_rate);
         }
     }
 }
 
 void send_getaddr_and_wait(int idx)
 {
-    if (idx < 0 || idx >= MAX_PEERS || !nodes[idx].is_connected)
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
     {
         fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
         return;
@@ -331,12 +337,6 @@ void send_getaddr_and_wait(int idx)
         const unsigned char* payload_data = (unsigned char*)buffer + sizeof(
             bitcoin_msg_header);
 
-        // for (size_t i = 0; i < payload_len; i++)
-        // {
-        //     printf("%02x ", payload_data[i]);
-        // }
-        // printf("\n");
-        int iters = 0;
 
         if (strcmp(cmd_name, "addr") == 0)
         {
@@ -449,12 +449,105 @@ void send_getaddr_and_wait(int idx)
     node->operation_in_progress = 0;
 }
 
+
+/**
+ * send_addr:
+ *   Sends the 'addr' message to the specified socket with the list of peers.
+ *   The addresses are converted to IPv6-mapped IPv4 addresses.
+ *
+ * Parameters:
+ *   sockfd - The socket file descriptor to send the message to.
+ *   ip_addr - The IP address of the peer to log the message.
+ *
+ * Returns:
+ *   The number of bytes sent on success, or -1 on failure.
+ */
+ssize_t send_addr(int sockfd, const char* ip_addr)
+{
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", ip_addr);
+
+    int peer_count;
+    Peer* peers = get_peer_queue(&peer_count);
+
+    if (peer_count == 0 || peers == NULL)
+    {
+        guarded_print_line("[Error] No peers available to send");
+        return -1;
+    }
+
+    // Allocate memory for address payload (IPv4 to IPv6-mapped)
+    size_t payload_size = peer_count * sizeof(struct sockaddr_in6);
+    unsigned char* addr_payload = malloc(payload_size);
+    if (!addr_payload)
+    {
+        perror("malloc failed");
+        free(peers);
+        return -1;
+    }
+
+    // Populate address payload with peer data (IPv6-mapped addresses for IPv4)
+    for (int i = 0; i < peer_count; i++)
+    {
+        struct sockaddr_in6* addr = (struct sockaddr_in6*)&addr_payload[i * sizeof(
+            struct sockaddr_in6)];
+        memset(addr, 0, sizeof(struct sockaddr_in6));
+        addr->sin6_family = AF_INET6;
+        addr->sin6_port = htons(peers[i].port);
+        addr->sin6_addr.s6_addr[10] = 0xFF;
+        addr->sin6_addr.s6_addr[11] = 0xFF;
+        inet_pton(AF_INET, peers[i].ip, &addr->sin6_addr.s6_addr[12]);
+
+        char ip_str[INET6_ADDRSTRLEN];
+        inet_ntop(AF_INET6, &addr->sin6_addr, ip_str, INET6_ADDRSTRLEN);
+        if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr))
+        {
+            struct in_addr ipv4_addr;
+            memcpy(&ipv4_addr, &addr->sin6_addr.s6_addr[12], 4);
+            inet_ntop(AF_INET, &ipv4_addr, ip_str, INET_ADDRSTRLEN);
+        }
+        log_message(LOG_INFO, log_filename, __FILE__, "Sending address: %s:%d", ip_str,
+                    peers[i].port);
+    }
+
+    // Prepare message buffer
+    unsigned char addr_msg[sizeof(bitcoin_msg_header) + payload_size];
+    size_t msg_len = build_message(addr_msg, sizeof(addr_msg), "addr", addr_payload,
+                                   payload_size);
+
+    if (msg_len == 0)
+    {
+        guarded_print_line("Failed to build 'addr' message.");
+        free(peers);
+        free(addr_payload);
+        return -1;
+    }
+
+    // Send the 'addr' message
+    ssize_t bytes_sent = send(sockfd, addr_msg, msg_len, 0);
+    if (bytes_sent < 0)
+    {
+        perror("Sending addresses failed");
+    }
+    else
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+                    "Successfully sent addresses");
+    }
+
+    free(peers);
+    free(addr_payload);
+
+    return bytes_sent;
+}
+
+
 /**
  * send_verack:
  *   Constructs a verack message with an **empty** payload (length = 0)
  *   and a valid 4-byte checksum for an empty payload.
  */
-static ssize_t send_verack(int sockfd)
+static ssize_t send_verack(int sockfd, const char* ip_addr)
 {
     unsigned char verack_msg[sizeof(bitcoin_msg_header)];
     memset(verack_msg, 0, sizeof(verack_msg));
@@ -485,7 +578,9 @@ static ssize_t send_verack(int sockfd)
     // Copy to buffer
     memcpy(verack_msg, &verack_header, sizeof(verack_header));
 
-    log_message(LOG_INFO, BITLAB_LOG, __FILE__,
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", ip_addr);
+    log_message(LOG_INFO, log_filename, __FILE__,
                 "sent verack");
     // log_to_file('test.log', 'sent verack');
     // Send to peer
@@ -591,24 +686,31 @@ void* peer_communication(void* arg)
     {
         // Check the magic
         ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer) - 1, 0);
+
+        // Wait while other operation is in progress e.g. getaddr
         while (node->operation_in_progress)
         {
             sleep(1);
         }
-        // while (node->cooking)
-        // {
-        //     continue;
-        // }
         if (bytes_received < 0)
         {
-            log_message(LOG_INFO, log_filename, __FILE__,
-                        "Recv failed: %s", strerror((errno)));
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                log_message(LOG_WARN, log_filename, __FILE__,
+                            "recv() timed out, continuing...");
+            }
+            else
+            {
+                log_message(LOG_INFO, log_filename, __FILE__,
+                            "Recv failed: %s", strerror((errno)));
+            }
             time_t current_time = time(NULL);
             if (difftime(current_time, last_ping_time) >= 5)
             {
                 send_ping(node->socket_fd, node->ip_address);
                 last_ping_time = current_time;
             }
+
             continue;
         }
         if (bytes_received > 0)
@@ -648,7 +750,8 @@ void* peer_communication(void* arg)
 
             // Determine the payload length & pointer
             size_t payload_len = hdr->length;
-            // const unsigned char* payload_data = recv_buf + sizeof(bitcoin_msg_header);
+            const unsigned char* payload_data = (const unsigned char*)buffer + sizeof(
+                bitcoin_msg_header);
 
             // In real code, you’d handle partial messages if n < header+payload
             if (bytes_received < (ssize_t)(sizeof(bitcoin_msg_header) + payload_len))
@@ -657,6 +760,92 @@ void* peer_communication(void* arg)
                             "Incomplete message; got %zd bytes, expected %zu.\n",
                             bytes_received, sizeof(bitcoin_msg_header) + payload_len);
                 continue;
+            }
+            if (strcmp(cmd_name, "ping") == 0)
+            {
+                // Typically 8-byte payload
+                if (payload_len == 8)
+                {
+                    ssize_t s = send_pong(node->socket_fd, payload_data);
+                    if (s < 0)
+                    {
+                        log_message(LOG_ERROR, log_filename, __FILE__,
+                                    "Sending pong: %s\n", strerror(errno));
+                    }
+                    else
+                    {
+                        log_message(LOG_INFO, log_filename, __FILE__,
+                                    "Successfully sent pong");
+                    }
+                }
+                else
+                {
+                    log_message(LOG_WARN, log_filename, __FILE__,
+                                "Ping payload length is not 8 bytes, not sending pong");
+                }
+            }
+            else if (strcmp(cmd_name, "getaddr") == 0)
+            {
+                if (payload_len == 0)
+                {
+                    ssize_t s = send_addr(node->socket_fd, node->ip_address);
+                    if (s < 0)
+                    {
+                        log_message(LOG_ERROR, log_filename, __FILE__,
+                                    "Sending addr: %s\n", strerror(errno));
+                    }
+                    else
+                    {
+                        log_message(LOG_INFO, log_filename, __FILE__,
+                                    "Successfully sent addresses");
+                    }
+                }
+                else
+                {
+                    log_message(LOG_WARN, log_filename, __FILE__,
+                                "Invalid payload length for 'getaddr' command: %zu",
+                                payload_len);
+                }
+            }
+            // Info about compact blocks is saved but handling of compact blocks is not implemented
+            else if (strcmp(cmd_name, "sendcmpct") == 0)
+            {
+                // usually 9 bytes: fannounce(1 byte) + version(8 bytes)
+                if (payload_len == 9)
+                {
+                    unsigned char fannounce = payload_data[0];
+                    uint64_t cmpctversion;
+                    memcpy(&cmpctversion, payload_data + 1, 8);
+                    node->compact_blocks = cmpctversion;
+                    log_message(LOG_INFO, log_filename, __FILE__,
+                                "compactblocks set to: %d, fannounce: %u",
+                                cmpctversion, fannounce);
+                }
+                else
+                {
+                    log_message(LOG_WARN, log_filename, __FILE__,
+                                "sendcmpct payload length is not 9 bytes, its: %zu",
+                                payload_len);
+                }
+            }
+            // Fee rate is saved, but filtering out transactions is not implemented
+            else if (strcmp(cmd_name, "feefilter") == 0)
+            {
+                // 8 bytes: an uint64_t in little-endian indicating min fee rate in sat/kB
+                if (payload_len == 8)
+                {
+                    uint64_t fee_rate;
+                    memcpy(&fee_rate, payload_data, 8);
+                    node->fee_rate = fee_rate;
+                    log_message(LOG_INFO, log_filename, __FILE__,
+                                "fee rate set to: %d", fee_rate);
+                }
+                else
+                {
+                    log_message(LOG_WARN, log_filename, __FILE__,
+                                "feefilter payload length is not 8 bytes, its: %zu",
+                                payload_len);
+                }
             }
         }
 
@@ -689,18 +878,6 @@ void create_peer_thread(Node* node)
 
 int connect_to_peer(const char* ip_addr)
 {
-    for (int i = 0; i < MAX_PEERS; i++)
-    {
-        if (nodes[i].is_connected == 1)
-        {
-            printf("Node %d:\n", i);
-            printf("  IP Address: %s\n", nodes[i].ip_address);
-            printf("  Port: %u\n", nodes[i].port);
-            printf("  Socket FD: %d\n", nodes[i].socket_fd);
-            printf("  Thread ID: %lu\n", nodes[i].thread);
-            printf("  Is Connected: %d\n", nodes[i].is_connected);
-        }
-    }
     // Create the socket
     int sockfd;
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -710,17 +887,17 @@ int connect_to_peer(const char* ip_addr)
     }
 
     struct timeval timeout;
-    // Set the timeout (e.g., 5 seconds)
     timeout.tv_sec = 3; // seconds
     timeout.tv_usec = 0; // microseconds
 
-    printf("before setsockopt\n");
+    // Set timeout for recv
     if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) < 0)
     {
         perror("setsockopt failed");
         close(sockfd);
         exit(EXIT_FAILURE);
     }
+    // Set timeout for connect()
     if (setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) < 0)
     {
         perror("setsockopt failed");
@@ -734,7 +911,6 @@ int connect_to_peer(const char* ip_addr)
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(BITCOIN_MAINNET_PORT);
 
-    printf("before inetpton\n");
     if (inet_pton(AF_INET, ip_addr, &servaddr.sin_addr) <= 0)
     {
         fprintf(stderr, "[Error] inet_pton failed (IP '%s'): %s\n",
@@ -743,7 +919,6 @@ int connect_to_peer(const char* ip_addr)
         return -1;
     }
 
-    printf("before socket connect\n");
     // Connect
     if (connect(sockfd, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0)
     {
@@ -792,15 +967,25 @@ int connect_to_peer(const char* ip_addr)
     }
     printf("[+] Sent 'version' message (%zd bytes).\n", bytes_sent);
 
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
+             ip_addr);
+    init_logging(log_filename);
     // Read loop - up to 10 messages
     unsigned char recv_buf[2048];
     bool connected = false;
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 4; i++)
     {
         printf("for loop waiting for messages %d\n", i);
         ssize_t n = recv(sockfd, recv_buf, sizeof(recv_buf), 0);
         if (n < 0)
         {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                log_message(LOG_WARN, log_filename, __FILE__,
+                            "recv() timed out, continuing...");
+                continue;
+            }
             fprintf(stderr, "[Error] recv() failed: %s\n", strerror(errno));
             break;
         }
@@ -834,9 +1019,7 @@ int connect_to_peer(const char* ip_addr)
 
             // Determine the payload length & pointer
             size_t payload_len = hdr->length;
-            // const unsigned char* payload_data = recv_buf + sizeof(bitcoin_msg_header);
 
-            // In real code, you’d handle partial messages if n < header+payload
             if (n < (ssize_t)(sizeof(bitcoin_msg_header) + payload_len))
             {
                 printf("[!] Incomplete message; got %zd bytes, expected %zu.\n",
@@ -848,7 +1031,7 @@ int connect_to_peer(const char* ip_addr)
             if (strcmp(cmd_name, "version") == 0)
             {
                 // Send verack once we get their version
-                ssize_t verack_sent = send_verack(sockfd);
+                ssize_t verack_sent = send_verack(sockfd, ip_addr);
                 if (verack_sent < 0)
                 {
                     fprintf(stderr, "[Error] sending verack: %s\n", strerror(errno));
@@ -864,62 +1047,6 @@ int connect_to_peer(const char* ip_addr)
                 connected = true;
                 break;
             }
-            // else if (strcmp(cmd_name, "ping") == 0)
-            // {
-            //     // Typically 8-byte payload
-            //     if (payload_len == 8)
-            //     {
-            //         ssize_t s = send_pong(sockfd, payload_data);
-            //         if (s < 0)
-            //         {
-            //             fprintf(stderr, "[Error] sending pong: %s\n", strerror(errno));
-            //         }
-            //         else
-            //         {
-            //             printf("[+] Sent 'pong' message.\n");
-            //         }
-            //     }
-            // }
-            // else if (strcmp(cmd_name, "sendcmpct") == 0)
-            // {
-            //     // Usually 9 bytes: fAnnounce(1 byte) + version(8 bytes)
-            //     if (payload_len == 9)
-            //     {
-            //         unsigned char fAnnounce = payload_data[0];
-            //         uint64_t cmpctVersion;
-            //         memcpy(&cmpctVersion, payload_data + 1, 8);
-            //         printf("[i] Peer wants to use compact blocks. "
-            //                "fAnnounce=%u, version=%" PRIu64 "\n",
-            //                fAnnounce, (uint64_t)cmpctVersion);
-            //         while (1)
-            //         {
-            //             send_ping(sockfd);
-            //             sleep(10);
-            //         }
-            //     }
-            //     else
-            //     {
-            //         printf("[!] 'sendcmpct' payload_len=%zu (expected 9)\n",
-            //                payload_len);
-            //     }
-            // }
-            // else if (strcmp(cmd_name, "feefilter") == 0)
-            // {
-            //     // 8 bytes: a uint64_t in little-endian indicating min fee rate in sat/kB
-            //     if (payload_len == 8)
-            //     {
-            //         uint64_t fee_rate;
-            //         memcpy(&fee_rate, payload_data, 8);
-            //         printf(
-            //             "[i] Peer set feefilter: min fee rate = %" PRIu64 " sat/kB\n",
-            //             (uint64_t)fee_rate);
-            //     }
-            //     else
-            //     {
-            //         printf("[!] 'feefilter' payload_len=%zu (expected 8)\n",
-            //                payload_len);
-            //     }
-            // }
             else
             {
                 // Unhandled command
@@ -934,17 +1061,13 @@ int connect_to_peer(const char* ip_addr)
     }
     if (connected == true)
     {
-        for (int j = 0; j < MAX_PEERS; j++)
+        for (int j = 0; j < MAX_NODES; j++)
         {
             if (nodes[j].is_connected == 0)
             {
                 guarded_print_line("connected to node: %s | %d.", ip_addr, j);
                 initialize_node(&nodes[j], ip_addr, 8333, sockfd);
                 create_peer_thread(&nodes[j]);
-                char log_filename[256];
-                snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
-                         ip_addr);
-                init_logging(log_filename);
                 break;
             }
         }
