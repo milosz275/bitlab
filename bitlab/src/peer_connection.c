@@ -674,16 +674,12 @@ void* peer_communication(void* arg)
 
 void create_peer_thread(Node* node)
 {
-    log_to_file("peer_communication.log",
-                "[+] start peer communication with node 3: %d", node->socket_fd);
     if (pthread_create(&node->thread, NULL, peer_communication, (void*)node) != 0)
     {
         perror("Failed to create thread for peer");
         exit(1);
     }
 
-    log_to_file("peer_communication.log",
-                "[+] start peer communication with node 4: %d", node->socket_fd);
     if (pthread_detach(node->thread) != 0)
     {
         perror("Failed to detach thread for peer");
@@ -942,25 +938,20 @@ int connect_to_peer(const char* ip_addr)
         {
             if (nodes[j].is_connected == 0)
             {
-                printf("connected to node: %s | %d.\n", ip_addr, j);
-                log_to_file("peer_communication.log",
-                            "[+] assign with node: %d", sockfd);
+                guarded_print_line("connected to node: %s | %d.", ip_addr, j);
                 initialize_node(&nodes[j], ip_addr, 8333, sockfd);
-                log_to_file("peer_communication.log",
-                            "[+] out here: %d", nodes[j].socket_fd);
                 create_peer_thread(&nodes[j]);
                 char log_filename[256];
                 snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
                          ip_addr);
                 init_logging(log_filename);
                 break;
-                // return 0;
             }
         }
     }
     else
     {
-        printf("Couldn't connect to node\n");
+        guarded_print_line("Couldn't connect to node\n");
         close(sockfd);
     }
     return 0;

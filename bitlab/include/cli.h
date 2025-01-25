@@ -150,8 +150,20 @@ int cli_ping(char** args);
  */
 int cli_connect(char** args);
 
+/**
+ * Lists all connected nodes.
+ *
+ * @param args The arguments passed to the function should be empty.
+ * @return The exit code.
+ */
 int cli_list(char** args);
 
+/**
+ * Sends a 'getaddr' message to the specified peer.
+ *
+ * @param args The index of the peer.
+ * @return The exit code.
+ */
 int cli_getaddr(char** args);
 
 

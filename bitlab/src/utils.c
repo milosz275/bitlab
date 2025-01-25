@@ -73,31 +73,6 @@ void guarded_print_line(const char* format, ...)
     funlockfile(stdout);
 }
 
-void log_to_file(const char* filename, const char* format, ...)
-{
-    FILE* log_file = fopen(filename, "a");
-    if (log_file == NULL) {
-        perror("[Error] Failed to open log file");
-        return;
-    }
-
-    char timestamp[20];
-    get_formatted_timestamp(timestamp, sizeof(timestamp));
-
-    flockfile(log_file);
-    fprintf(log_file, "[%s] ", timestamp);
-
-    va_list args;
-    va_start(args, format);
-    vfprintf(log_file, format, args);
-    va_end(args);
-
-    fprintf(log_file, "\n");
-    funlockfile(log_file);
-
-    fclose(log_file);
-}
-
 uint64_t ntohll(uint64_t value)
 {
     if (__BYTE_ORDER == __LITTLE_ENDIAN)
