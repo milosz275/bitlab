@@ -48,9 +48,13 @@ CMakeCache.txt
 # Logs
 *.log
 logs/
+logs
 
 # VSCode
 *.vc.*
+
+# Jetbrains
+.idea/
 
 # BitLab history
 .*history.txt

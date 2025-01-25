@@ -25,78 +25,111 @@ static cli_command cli_commands[] =
         .cli_command = &cli_clear,
         .cli_command_name = "clear",
         .cli_command_brief_desc = "Clears CLI screen.",
-        .cli_command_detailed_desc = " * clear - Clears the command line interface screen for better readability.",
+        .cli_command_detailed_desc =
+        " * clear - Clears the command line interface screen for better readability.",
         .cli_command_usage = "clear"
     },
     {
         .cli_command = &cli_echo,
         .cli_command_name = "echo",
         .cli_command_brief_desc = "Echoes the input.",
-        .cli_command_detailed_desc = " * echo - Outputs the text or arguments provided as input.",
+        .cli_command_detailed_desc =
+        " * echo - Outputs the text or arguments provided as input.",
         .cli_command_usage = "echo [Text to be echoed]"
     },
     {
         .cli_command = &cli_exit,
         .cli_command_name = "exit",
         .cli_command_brief_desc = "Stops the server.",
-        .cli_command_detailed_desc = " * exit - Stops the server gracefully and terminates the session.",
+        .cli_command_detailed_desc =
+        " * exit - Stops the server gracefully and terminates the session.",
         .cli_command_usage = "exit [-f | --force]"
     },
     {
         .cli_command = &cli_get_ip,
         .cli_command_name = "getip",
         .cli_command_brief_desc = "Obtains IP address of given URL.",
-        .cli_command_detailed_desc = " * getip - Retrieves and displays the remote IP address of a specified URL or host if not specified.",
+        .cli_command_detailed_desc =
+        " * getip - Retrieves and displays the remote IP address of a specified URL or host if not specified.",
         .cli_command_usage = "getip [URL 1] [URL 2] ..."
     },
     {
         .cli_command = &cli_help,
         .cli_command_name = "help",
         .cli_command_brief_desc = "Prints command descriptions.",
-        .cli_command_detailed_desc = " * help - Lists all available commands with their descriptions.",
+        .cli_command_detailed_desc =
+        " * help - Lists all available commands with their descriptions.",
         .cli_command_usage = "help [command]"
     },
     {
         .cli_command = &cli_history,
         .cli_command_name = "history",
         .cli_command_brief_desc = "Prints command history.",
-        .cli_command_detailed_desc = " * history - Displays the history of all entered commands for reference.",
+        .cli_command_detailed_desc =
+        " * history - Displays the history of all entered commands for reference.",
         .cli_command_usage = "history"
     },
     {
         .cli_command = &cli_info,
         .cli_command_name = "info",
         .cli_command_brief_desc = "Prints program information.",
-        .cli_command_detailed_desc = " * info - Displays information about BitLab program and the host machine.",
+        .cli_command_detailed_desc =
+        " * info - Displays information about BitLab program and the host machine.",
         .cli_command_usage = "info"
     },
     {
         .cli_command = &cli_peer_discovery,
         .cli_command_name = "peerdiscovery",
         .cli_command_brief_desc = "Starts peer discovery.",
-        .cli_command_detailed_desc = " * peerdiscovery - Initiates the peer discovery proces. Use daemon argument to detach and run in the background. Run again to connect and wait for results. Use without arguments to run default DNS lookup. Add domain after -d or --dns to use custom DNS lookup. Use -h or --hardcoded to use hardcoded seeds of Bitcoin network IPs. Running without arguments will wait for results and running with other arguments before previous are generated will wait for the previous results.",
-        .cli_command_usage = "peerdiscovery [-d | --daemon] [-h | --hardcoded] [-l | --dns-lookup]"
+        .cli_command_detailed_desc =
+        " * peerdiscovery - Initiates the peer discovery proces. Use daemon argument to detach and run in the background. Run again to connect and wait for results. Use without arguments to run default DNS lookup. Add domain after -d or --dns to use custom DNS lookup. Use -h or --hardcoded to use hardcoded seeds of Bitcoin network IPs. Running without arguments will wait for results and running with other arguments before previous are generated will wait for the previous results.",
+        .cli_command_usage =
+        "peerdiscovery [-d | --daemon] [-h | --hardcoded] [-l | --dns-lookup]"
     },
     {
         .cli_command = &cli_connect,
         .cli_command_name = "connect",
         .cli_command_brief_desc = "Connects to the specified IP address.",
-        .cli_command_detailed_desc = " * connect - Connects to the specified IP address to establish a peer-to-peer connection.",
+        .cli_command_detailed_desc =
+        " * connect - Connects to the specified IP address to establish a peer-to-peer connection.",
         .cli_command_usage = "connect [IP address]"
     },
     {
         .cli_command = &cli_ping,
         .cli_command_name = "ping",
         .cli_command_brief_desc = "Pings the specified IP address.",
-        .cli_command_detailed_desc = " * ping - Pings the specified IP address to check for connectivity.",
+        .cli_command_detailed_desc =
+        " * ping - Pings the specified IP address to check for connectivity.",
         .cli_command_usage = "ping [-c | --count]"
     },
     {
         .cli_command = &cli_whoami,
         .cli_command_name = "whoami",
         .cli_command_brief_desc = "Prints basic information about user.",
-        .cli_command_detailed_desc = " * whoami - Displays username or full user information, including username, local IP, and public IP address when --full argument provided.",
+        .cli_command_detailed_desc =
+        " * whoami - Displays username or full user information, including username, local IP, and public IP address when --full argument provided.",
         .cli_command_usage = "whoami [-f | --full]",
+    },
+    {
+        .cli_command = &cli_getaddr,
+        .cli_command_name = "getaddr",
+        .cli_command_brief_desc = "Gets addresses from the specified node.",
+        .cli_command_detailed_desc = " * getaddr - Send 'getaddr' command to peer and wait for response. Use with node index to specify the node. Prints IP addresses of returned nodes.",
+        .cli_command_usage = "getaddr [idx of node]"
+    },
+    {
+        .cli_command = &cli_list,
+        .cli_command_name = "list",
+        .cli_command_brief_desc = "Lists connected nodes.",
+        .cli_command_detailed_desc = " * list - Lists nodes connected with 'connect' command. Shows IP address, port, socket FD, thread ID, connection status, operation status, compact blocks, and fee rate.",
+        .cli_command_usage = "list"
+    },
+    {
+        .cli_command = &cli_disconnect,
+        .cli_command_name = "disconnect",
+        .cli_command_brief_desc = "Disconnect from specified node.",
+        .cli_command_detailed_desc = " * disconnect - Disconnects from node specified by the given node ID. Closes the socket, terminates the thread, and logs the disconnection.",
+        .cli_command_usage = "disconnect [idx of node]"
     },
 }; // do not add NULLs at the end
 
@@ -112,7 +145,8 @@ void print_help()
         char* space_pos = strchr(cli_commands[i].cli_command_usage, ' ');
         if (space_pos)
         {
-            cmd_length = space_pos - cli_commands[i].cli_command_usage; // only command length
+            cmd_length = space_pos - cli_commands[i].cli_command_usage;
+            // only command length
             param_length = strlen(space_pos + 1); // parameters length
         }
         else
@@ -218,7 +252,8 @@ int cli_exit(char** args)
         {
             if (args[1] != NULL)
             {
-                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for exit command: \"%s\"", args[1]);
+                log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                    "Unknown argument for exit command: \"%s\"", args[1]);
                 print_usage("exit");
                 pthread_mutex_unlock(&cli_mutex);
                 return 1;
@@ -227,7 +262,8 @@ int cli_exit(char** args)
             pthread_mutex_unlock(&cli_mutex);
             exit(0);
         }
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for exit command: \"%s\"", args[0]);
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Unknown argument for exit command: \"%s\"", args[0]);
         print_usage("exit");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
@@ -243,7 +279,8 @@ int cli_history(char** args)
     pthread_mutex_lock(&cli_mutex);
     if (args[0] != NULL)
     {
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for history command: \"%s\"", args[0]);
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Unknown argument for history command: \"%s\"", args[0]);
         print_usage("history");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
@@ -265,7 +302,8 @@ int cli_help(char** args)
     {
         if (args[1] != NULL && args[2] == NULL)
         {
-            log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Too many arguments for help command");
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                "Too many arguments for help command");
             print_usage("help");
             pthread_mutex_unlock(&cli_mutex);
             return 1;
@@ -277,7 +315,8 @@ int cli_help(char** args)
                 if (cli_commands[i].cli_command_detailed_desc)
                     guarded_print_line(cli_commands[i].cli_command_detailed_desc);
                 else
-                    guarded_print_line(" * %s - Detailed information not included.", args[0]);
+                    guarded_print_line(" * %s - Detailed information not included.",
+                        args[0]);
                 pthread_mutex_unlock(&cli_mutex);
                 return 0;
             }
@@ -295,7 +334,8 @@ int cli_echo(char** args)
     pthread_mutex_lock(&cli_mutex);
     if (args[0] == NULL)
     {
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "No arguments provided for echo command");
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "No arguments provided for echo command");
         print_usage("echo");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
@@ -317,7 +357,8 @@ int cli_whoami(char** args)
         {
             if (args[1] != NULL)
             {
-                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for whoami command: \"%s\"", args[1]);
+                log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                    "Unknown argument for whoami command: \"%s\"", args[1]);
                 print_usage("whoami");
                 pthread_mutex_unlock(&cli_mutex);
                 return 1;
@@ -326,7 +367,8 @@ int cli_whoami(char** args)
         }
         else
         {
-            log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for whoami command: \"%s\"", args[0]);
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                "Unknown argument for whoami command: \"%s\"", args[0]);
             print_usage("whoami");
             pthread_mutex_unlock(&cli_mutex);
             return 1;
@@ -387,10 +429,12 @@ int cli_get_ip(char** args)
                 if (is_valid_domain_address(args[i]))
                 {
                     lookup_address(args[i], ip_address);
-                    guarded_print_line("%d: IP address of %s: %s", i + 1, args[i], ip_address);
+                    guarded_print_line("%d: IP address of %s: %s", i + 1, args[i],
+                        ip_address);
                 }
                 else
-                    guarded_print_line("%d: Invalid domain address: %s", i + 1, args[i]);
+                    guarded_print_line("%d: Invalid domain address: %s", i + 1,
+                        args[i]);
                 i++;
             }
         }
@@ -404,7 +448,8 @@ int cli_info(char** args)
     pthread_mutex_lock(&cli_mutex);
     if (args[0] != NULL)
     {
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for info command: %s", args[0]);
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Unknown argument for info command: %s", args[0]);
         print_usage("info");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
@@ -467,7 +512,8 @@ int cli_peer_discovery(char** args)
             {
                 if (daemon_set)
                 {
-                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Daemon flag already set for peerdiscovery command");
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                        "Daemon flag already set for peerdiscovery command");
                     print_usage("peerdiscovery");
                     pthread_mutex_unlock(&cli_mutex);
                     return 1;
@@ -479,7 +525,8 @@ int cli_peer_discovery(char** args)
             {
                 if (hardcoded_seeds_set || dns_lookup_set)
                 {
-                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Hardcoded seeds or DNS lookup flag already set for peerdiscovery command");
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                        "Hardcoded seeds or DNS lookup flag already set for peerdiscovery command");
                     print_usage("peerdiscovery");
                     pthread_mutex_unlock(&cli_mutex);
                     return 1;
@@ -493,17 +540,20 @@ int cli_peer_discovery(char** args)
             {
                 if (dns_lookup_set || hardcoded_seeds_set)
                 {
-                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "DNS lookup or hardcoded seeds flag already set for peerdiscovery command");
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                        "DNS lookup or hardcoded seeds flag already set for peerdiscovery command");
                     print_usage("peerdiscovery");
                     pthread_mutex_unlock(&cli_mutex);
                     return 1;
                 }
 
                 if (args[i + 1] == NULL)
-                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Missing domain argument for DNS lookup flag for peerdiscovery command, default will be used");
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                        "Missing domain argument for DNS lookup flag for peerdiscovery command, default will be used");
                 if (args[i + 2] != NULL)
                 {
-                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Too many arguments for DNS lookup flag for peerdiscovery command");
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                        "Too many arguments for DNS lookup flag for peerdiscovery command");
                     print_usage("peerdiscovery");
                     pthread_mutex_unlock(&cli_mutex);
                     return 1;
@@ -519,17 +569,22 @@ int cli_peer_discovery(char** args)
                 if (dns_lookup_set)
                 {
                     if (set_peer_discovery_dns_domain(args[i]))
-                        log_message(LOG_INFO, BITLAB_LOG, __FILE__, "Set DNS domain for peerdiscovery command: %s", args[i]);
+                        log_message(LOG_INFO, BITLAB_LOG, __FILE__,
+                            "Set DNS domain for peerdiscovery command: %s",
+                            args[i]);
                     else
                     {
-                        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Failed to set DNS domain for peerdiscovery command");
+                        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                            "Failed to set DNS domain for peerdiscovery command");
                         pthread_mutex_unlock(&cli_mutex);
                         return 1;
                     }
                 }
                 else
                 {
-                    log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for peerdiscovery command: %s", args[i]);
+                    log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                        "Unknown argument for peerdiscovery command: %s",
+                        args[i]);
                     print_usage("peerdiscovery");
                     pthread_mutex_unlock(&cli_mutex);
                     return 1;
@@ -543,14 +598,17 @@ int cli_peer_discovery(char** args)
     {
         if (daemon)
         {
-            log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Peer discovery already in progress");
-            guarded_print_line("Peer discovery already in progress. Use \"peerdiscovery\" to check results later or \"info\" to see the status. Any additional arguments will be ignored until the results are cleared.");
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                "Peer discovery already in progress");
+            guarded_print_line(
+                "Peer discovery already in progress. Use \"peerdiscovery\" to check results later or \"info\" to see the status. Any additional arguments will be ignored until the results are cleared.");
             pthread_mutex_unlock(&cli_mutex);
             return 1;
         }
         else // wait for peer discovery to finish
         {
-            guarded_print_line("Connected to peer discovery daemon. Arguments ignored if provided. Waiting for results...");
+            guarded_print_line(
+                "Connected to peer discovery daemon. Arguments ignored if provided. Waiting for results...");
             while (get_peer_discovery_in_progress())
                 usleep(100000); // 100 ms
             usleep(1000000); // 1s
@@ -561,10 +619,12 @@ int cli_peer_discovery(char** args)
         // check if previous peer discovery attempt failed
         bool results_successful = get_peer_discovery_succeeded();
         if (get_peer_discovery() && !results_successful)
-            log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Peer discovery previous attempt failed. Allowing new attempt...");
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                "Peer discovery previous attempt failed. Allowing new attempt...");
 
         if (!results_successful) // results does not exist or failed and are not cleared
-        { // [ ] Add clearing results
+        {
+            // [ ] Add clearing results
             // set states
             set_peer_discovery(true);
             set_peer_discovery_daemon(daemon);
@@ -573,8 +633,10 @@ int cli_peer_discovery(char** args)
 
             if (daemon)
             {
-                log_message(LOG_INFO, BITLAB_LOG, __FILE__, "Peer discovery in background");
-                guarded_print_line("Peer discovery started as daemon. Use \"peerdiscovery\" to check results or \"info\" to see the status.");
+                log_message(LOG_INFO, BITLAB_LOG, __FILE__,
+                    "Peer discovery in background");
+                guarded_print_line(
+                    "Peer discovery started as daemon. Use \"peerdiscovery\" to check results or \"info\" to see the status.");
                 pthread_mutex_unlock(&cli_mutex);
                 return 0;
             }
@@ -608,7 +670,8 @@ int cli_ping(char** args)
         {
             if (args[i + 1] == NULL)
             {
-                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Missing count value for ping command.");
+                log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                    "Missing count value for ping command.");
                 print_usage("ping");
                 pthread_mutex_unlock(&cli_mutex);
                 return 1;
@@ -617,7 +680,8 @@ int cli_ping(char** args)
             count = strtol(args[i + 1], NULL, 10);
             if (count <= 0)
             {
-                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Invalid count value: %s", args[i + 1]);
+                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Invalid count value: %s",
+                    args[i + 1]);
                 print_usage("ping");
                 pthread_mutex_unlock(&cli_mutex);
                 return 1;
@@ -628,7 +692,8 @@ int cli_ping(char** args)
         {
             if (strlen(args[i]) >= BUFFER_SIZE)
             {
-                log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Invalid IP address for ping command.");
+                log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                    "Invalid IP address for ping command.");
                 print_usage("ping");
                 pthread_mutex_unlock(&cli_mutex);
                 return 1;
@@ -638,7 +703,8 @@ int cli_ping(char** args)
         }
         else
         {
-            log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Too many arguments for ping command: %s", args[i]);
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                "Too many arguments for ping command: %s", args[i]);
             print_usage("ping");
             pthread_mutex_unlock(&cli_mutex);
             return 1;
@@ -647,7 +713,8 @@ int cli_ping(char** args)
 
     if (ip_address[0] == '\0')
     {
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Missing IP address for ping command.");
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Missing IP address for ping command.");
         print_usage("ping");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
@@ -655,7 +722,8 @@ int cli_ping(char** args)
 
     guarded_print_line("Pinging %s with count %d", ip_address, count);
     char command[BUFFER_SIZE];
-    snprintf(command, sizeof(command), "ping -c %d -i %d %s", count, sleep_time, ip_address);
+    snprintf(command, sizeof(command), "ping -c %d -i %d %s", count, sleep_time,
+        ip_address);
     system(command);
 
     pthread_mutex_unlock(&cli_mutex);
@@ -667,14 +735,16 @@ int cli_connect(char** args)
     pthread_mutex_lock(&cli_mutex);
     if (args[0] == NULL)
     {
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "No arguments provided for connect command");
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "No arguments provided for connect command");
         print_usage("connect");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
     }
     if (args[1] != NULL)
     {
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Too many arguments for connect command");
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Too many arguments for connect command");
         print_usage("connect");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
@@ -688,17 +758,90 @@ int cli_connect(char** args)
         connect_to_peer(ip_address);
     }
     else
-        guarded_print_line("Connect command uses numeric address for peer connection. Supplied argument: %s", args[0]);
+        guarded_print_line(
+            "Connect command uses numeric address for peer connection. Supplied argument: %s",
+            args[0]);
     pthread_mutex_unlock(&cli_mutex);
     return 0;
 }
+
+
+int cli_getaddr(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "No arguments provided for getaddr command");
+        print_usage("getaddr");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    if (args[1] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Too many arguments for getaddr command");
+        print_usage("getaddr");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    int idx = atoi(args[0]);
+    guarded_print_line("getaddr to %d", idx);
+    send_getaddr_and_wait(idx);
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_disconnect(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "No arguments provided for getaddr command");
+        print_usage("getaddr");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    if (args[1] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Too many arguments for getaddr command");
+        print_usage("getaddr");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    int idx = atoi(args[0]);
+    guarded_print_line("disconnect from node %d", idx);
+    disconnect(idx);
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_list(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Too many arguments for getaddr command");
+        print_usage("getaddr");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    list_connected_nodes();
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
 
 int cli_clear(char** args)
 {
     pthread_mutex_lock(&cli_mutex);
     if (args[0] != NULL)
     {
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Unknown argument for clear command: %s", args[0]);
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Unknown argument for clear command: %s", args[0]);
         print_usage("clear");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
@@ -738,13 +881,13 @@ int cli_get_line(char** lineptr, size_t* n, FILE* stream)
     {
         ptr = realloc(*lineptr, MAX_LINE_LEN);
         if (ptr == NULL)
-            return(-1);
+            return (-1);
         *lineptr = ptr;
         *n = MAX_LINE_LEN;
     }
 
     strcpy(*lineptr, line);
-    return(len);
+    return (len);
 }
 
 char* cli_read_line(void)
@@ -785,7 +928,8 @@ int cli_exec_line(char* line)
             tokens = realloc(tokens, buffer_size * sizeof(char*));
             if (!tokens)
             {
-                log_message(LOG_FATAL, BITLAB_LOG, __FILE__, "cli_exec_line: malloc error");
+                log_message(LOG_FATAL, BITLAB_LOG, __FILE__,
+                    "cli_exec_line: malloc error");
                 exit(EXIT_FAILURE);
             }
         }
@@ -822,7 +966,7 @@ char** cli_completion(const char* text, int start, int end)
 {
     rl_attempted_completion_over = 1;
     start = start; // unused
-    end = end;     // unused
+    end = end; // unused
     char* line = rl_line_buffer;
     int spaces = 0;
 
@@ -878,7 +1022,8 @@ void* handle_cli(void* arg)
     struct stat st = { 0 };
 
     if (stat(cli_history_dir, &st) == -1 && mkdir(cli_history_dir, 0700) != 0)
-        log_message(LOG_WARN, BITLAB_LOG, __FILE__, "Failed to create history directory");
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Failed to create history directory");
 
     char full_path[BUFFER_SIZE];
     snprintf(full_path, sizeof(full_path), "%s/%s", cli_history_dir, CLI_HISTORY_FILE);
@@ -908,7 +1053,9 @@ void* handle_cli(void* arg)
             line = NULL;
         }
     }
-    if (arg) {} // dummy code to avoid unused parameter warning
+    if (arg)
+    {
+    } // dummy code to avoid unused parameter warning
     if (cli_history_dir != NULL)
     {
         free((void*)cli_history_dir);

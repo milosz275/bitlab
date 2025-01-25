@@ -19,7 +19,7 @@
 program_state state =
 {
     0,
-    0, 
+    0,
     0,
     0,
     PTHREAD_MUTEX_INITIALIZER

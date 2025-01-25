@@ -34,6 +34,10 @@ const char* create_logs_dir()
 void init_logging(const char* filename)
 {
     logs.is_initializing = 1;
+    if (logs_dir != NULL)
+    {
+        free((void*)logs_dir);
+    }
     logs_dir = create_logs_dir();
     struct stat st = { 0 };
 
@@ -43,6 +47,8 @@ void init_logging(const char* filename)
         {
             perror("Failed to create logs directory");
             logs.is_initializing = 0;
+            free((void*)logs_dir); // Free logs_dir on error
+            logs_dir = NULL;
             return;
         }
     }
@@ -82,6 +88,16 @@ void init_logging(const char* filename)
 
 void log_message(log_level level, const char* filename, const char* source_file, const char* format, ...)
 {
+    if (logs_dir == NULL)
+    {
+        logs_dir = create_logs_dir();
+        if (logs_dir == NULL)
+        {
+            fprintf(stderr, "Failed to create logs directory\n");
+            return;
+        }
+    }
+
     char full_path[BUFFER_SIZE];
     snprintf(full_path, sizeof(full_path), "%s/%s", logs_dir, filename);
 
@@ -99,9 +115,36 @@ void log_message(log_level level, const char* filename, const char* source_file,
 
     if (log == NULL)
     {
-        pthread_mutex_unlock(&logs.log_mutex);
-        fprintf(stderr, "Log file not found: %s\n", full_path);
-        return;
+        // Try to create and open the log file if it doesn't exist
+        log = fopen(full_path, "a");
+        if (log == NULL)
+        {
+            pthread_mutex_unlock(&logs.log_mutex);
+            fprintf(stderr, "Failed to create or open log file: %s\n", full_path);
+            return;
+        }
+
+        // Add the new log file to the logs array
+        for (int i = 0; i < MAX_LOG_FILES; ++i)
+        {
+            if (logs.array[i] == NULL)
+            {
+                logs.array[i] = (struct logger*)malloc(sizeof(logger));
+                logs.array[i]->filename = (char*)malloc(strlen(full_path) + 1);
+                if (logs.array[i]->filename == NULL)
+                {
+                    perror("Failed to allocate memory for filename");
+                    free(logs.array[i]);
+                    logs.array[i] = NULL;
+                    fclose(log);
+                    pthread_mutex_unlock(&logs.log_mutex);
+                    return;
+                }
+                snprintf(logs.array[i]->filename, strlen(full_path) + 1, "%s", full_path);
+                logs.array[i]->file = log;
+                break;
+            }
+        }
     }
 
     int timeout = 0;

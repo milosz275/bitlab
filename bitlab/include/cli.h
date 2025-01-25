@@ -30,7 +30,6 @@ typedef struct
 } cli_command;
 
 
-
 //// PRINT FUNCTIONS ////
 
 /**
@@ -51,7 +50,6 @@ void print_usage(const char* command_name);
 void print_commands();
 
 
-
 //// HISTORY FUNCTIONS ////
 
 /**
@@ -60,7 +58,6 @@ void print_commands();
  * @return The history directory.
  */
 const char* create_history_dir();
-
 
 
 //// CLI COMMANDS ////
@@ -153,6 +150,32 @@ int cli_ping(char** args);
  */
 int cli_connect(char** args);
 
+/**
+ * Lists all connected nodes.
+ *
+ * @param args The arguments passed to the function should be empty.
+ * @return The exit code.
+ */
+int cli_list(char** args);
+
+/**
+ * Sends a 'getaddr' message to the specified peer.
+ *
+ * @param args The index of the peer.
+ * @return The exit code.
+ */
+int cli_getaddr(char** args);
+
+/**
+ * @brief Disconnects from the specified node.
+ *
+ * This function disconnects from the node specified by the given node ID. It closes the socket,
+ * terminates the thread, and logs the disconnection.
+ *
+ * @param args The arguments passed to the function should contain the node ID.
+ * @return The exit code.
+ */
+int cli_disconnect(char** args);
 
 //// LINE HANDLING FUNCTIONS ////
 
@@ -184,7 +207,6 @@ char* cli_read_line(void);
 int cli_exec_line(char* line);
 
 
-
 //// LINE COMPLETION FUNCTIONS ////
 
 /**
@@ -205,7 +227,6 @@ char** cli_completion(const char* text, int start, int end);
  * @return The generated command.
  */
 char* cli_command_generator(const char* text, int state);
-
 
 
 //// CLI HANDLER ////
