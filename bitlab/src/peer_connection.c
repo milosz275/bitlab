@@ -696,7 +696,7 @@ int connect_to_peer(const char* ip_addr)
 
     struct timeval timeout;
     // Set the timeout (e.g., 5 seconds)
-    timeout.tv_sec = 10; // seconds
+    timeout.tv_sec = 3; // seconds
     timeout.tv_usec = 0; // microseconds
 
     printf("before setsockopt\n");
@@ -705,6 +705,12 @@ int connect_to_peer(const char* ip_addr)
         perror("setsockopt failed");
         close(sockfd);
         exit(EXIT_FAILURE);
+    }
+    if (setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout)) < 0)
+    {
+        perror("setsockopt failed");
+        close(sockfd);
+        return -1;
     }
 
     // Prepare the sockaddr_in
