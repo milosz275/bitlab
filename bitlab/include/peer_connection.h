@@ -1,6 +1,59 @@
 #ifndef __PEER_CONNECTION_H
 #define __PEER_CONNECTION_H
 
+#include <stdint.h>
+#include <pthread.h>
+
+// Maximum number of peers to track
+#define MAX_NODES 100
+
+// Bitcoin mainnet magic bytes:
+#define BITCOIN_MAINNET_MAGIC 0xD9B4BEF9
+
+// Default Bitcoin mainnet port:
+#define BITCOIN_MAINNET_PORT 8333
+
+// Structure for Bitcoin P2P message header (24 bytes).
+// For reference: https://en.bitcoin.it/wiki/Protocol_documentation#Message_structure
+#pragma pack(push, 1)
+typedef struct
+{
+    unsigned int magic; // Magic value indicating message origin network
+    char command[12]; // ASCII command (null-padded)
+    unsigned int length; // Payload size (little-endian)
+    unsigned int checksum; // First 4 bytes of double SHA-256 of the payload
+} bitcoin_msg_header;
+#pragma pack(pop)
+
+// Node structure representing a peer connection
+typedef struct
+{
+    char ip_address[64]; // IP address of the peer
+    uint16_t port; // Port of the peer
+    int socket_fd; // Socket file descriptor for communication
+    pthread_t thread; // Thread assigned to this connection
+    int is_connected; // Connection status
+    int operation_in_progress; // is operation in progress
+    uint64_t compact_blocks; // Does peer want to use compact blocks
+    uint64_t fee_rate; // Min fee rate in sat/kB of transaction that peer allows
+} Node;
+
+// Declare the global array of nodes
+extern Node nodes[MAX_NODES];
+
+// /**
+//  *   @brief Creates a Bitcoin P2P message (header + payload) in `buf`.
+//  *
+//  *   The 'command' is zero-padded to 12 bytes. The payload is appended.
+//  *   We compute the 4-byte double-SHA256 checksum.
+//  */
+// size_t build_message(
+//     unsigned char* buf,
+//     size_t buf_size,
+//     const char* command,
+//     const unsigned char* payload,
+//     size_t payload_len);
+
 /**
  * @brief Lists all connected nodes and their details.
  *
