@@ -203,10 +203,12 @@ static size_t build_message(
 
 void list_connected_nodes()
 {
+    int node_count = 0;
     for (int i = 0; i < MAX_NODES; ++i)
     {
         if (nodes[i].is_connected == 1)
         {
+            node_count++;
             guarded_print_line("Node %d:", i);
             guarded_print_line(" IP Address: %s", nodes[i].ip_address);
             guarded_print_line(" Port: %u", nodes[i].port);
@@ -220,6 +222,10 @@ void list_connected_nodes()
             guarded_print_line(" Fee_rate: %lu",
                 nodes[i].fee_rate);
         }
+    }
+    if (node_count == 0)
+    {
+        guarded_print_line("No nodes are currently connected.");
     }
 }
 
