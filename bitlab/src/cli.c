@@ -786,7 +786,7 @@ int cli_getaddr(char** args)
         return 1;
     }
     int idx = atoi(args[0]);
-    guarded_print_line("getaddr to %d", idx);
+    guarded_print_line("Sending getaddr to %d", idx);
     send_getaddr_and_wait(idx);
     pthread_mutex_unlock(&cli_mutex);
     return 0;
@@ -812,7 +812,7 @@ int cli_disconnect(char** args)
         return 1;
     }
     int idx = atoi(args[0]);
-    guarded_print_line("disconnect from node %d", idx);
+    guarded_print_line("Disconnecting from node %d", idx);
     disconnect(idx);
     pthread_mutex_unlock(&cli_mutex);
     return 0;
