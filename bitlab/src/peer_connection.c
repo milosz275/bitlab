@@ -1127,10 +1127,11 @@ void disconnect(int node_id)
 
     node->is_connected = 0;
 
-    if (pthread_cancel(node->thread) != 0)
-    {
-        perror("Failed to cancel thread for peer");
-    }
+    //// This code is causing stack-buffer-overflow
+    // if (pthread_cancel(node->thread) != 0)
+    // {
+    //     perror("Failed to cancel thread for peer");
+    // }
 
     log_message(LOG_INFO, log_filename, __FILE__,
         "Successfully disconnected from node %s:%u", node->ip_address,
