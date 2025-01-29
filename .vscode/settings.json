@@ -45,7 +45,8 @@
         "bit": "c",
         "compare": "c",
         "limits": "c",
-        "new": "c"
+        "new": "c",
+        "errno.h": "c"
     },
     "C_Cpp.formatting": "vcFormat",
     "C_Cpp.autoAddFileAssociations": true,
