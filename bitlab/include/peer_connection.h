@@ -41,19 +41,6 @@ typedef struct
 // Declare the global array of nodes
 extern Node nodes[MAX_NODES];
 
-// /**
-//  *   @brief Creates a Bitcoin P2P message (header + payload) in `buf`.
-//  *
-//  *   The 'command' is zero-padded to 12 bytes. The payload is appended.
-//  *   We compute the 4-byte double-SHA256 checksum.
-//  */
-// size_t build_message(
-//     unsigned char* buf,
-//     size_t buf_size,
-//     const char* command,
-//     const unsigned char* payload,
-//     size_t payload_len);
-
 /**
  * @brief Lists all connected nodes and their details.
  *
