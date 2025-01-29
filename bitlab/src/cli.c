@@ -114,7 +114,7 @@ static cli_command cli_commands[] =
         .cli_command = &cli_getaddr,
         .cli_command_name = "getaddr",
         .cli_command_brief_desc = "Gets addresses from the specified node.",
-        .cli_command_detailed_desc = " * getaddr - Send 'getaddr' command to peer and wait for response. Use with node index to specify the node. Prints IP addresses of returned nodes.",
+        .cli_command_detailed_desc = " * getaddr - Sends 'getaddr' command to peer and wait for response. Use with node index to specify the node. Prints IP addresses of returned nodes.",
         .cli_command_usage = "getaddr [idx of node]"
     },
     {
@@ -131,6 +131,13 @@ static cli_command cli_commands[] =
         .cli_command_detailed_desc = " * disconnect - Disconnects from node specified by the given node ID. Closes the socket, terminates the thread, and logs the disconnection.",
         .cli_command_usage = "disconnect [idx of node]"
     },
+    // {
+    //     .cli_command = &cli_getheaders,
+    //     .cli_command_name = "getheaders",
+    //     .cli_command_brief_desc = "Gets blockchain headers from the specified node.",
+    //     .cli_command_detailed_desc = " * getheaders - Sends 'getheaders'........",
+    //     .cli_command_usage = "getheaders [idx of node]"
+    // },
 }; // do not add NULLs at the end
 
 void print_help()
@@ -798,16 +805,16 @@ int cli_disconnect(char** args)
     if (args[0] == NULL)
     {
         log_message(LOG_WARN, BITLAB_LOG, __FILE__,
-            "No arguments provided for getaddr command");
-        print_usage("getaddr");
+            "No arguments provided for disconnect command");
+        print_usage("disconnect");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
     }
     if (args[1] != NULL)
     {
         log_message(LOG_WARN, BITLAB_LOG, __FILE__,
-            "Too many arguments for getaddr command");
-        print_usage("getaddr");
+            "Too many arguments for disconnect command");
+        print_usage("disconnect");
         pthread_mutex_unlock(&cli_mutex);
         return 1;
     }
@@ -815,6 +822,32 @@ int cli_disconnect(char** args)
     guarded_print_line("Disconnecting from node %d", idx);
     disconnect(idx);
     pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_getheaders(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "No arguments provided for getheaders command");
+        print_usage("getheaders");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    if (args[1] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Too many arguments for getheaders command");
+        print_usage("getheaders");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    // int idx = atoi(args[0]);
+    // guarded_print_line("Sending getheaders to %d", idx);
+    // send_getheaders_and_wait(idx);
+    // pthread_mutex_unlock(&cli_mutex);
     return 0;
 }
 

@@ -177,6 +177,15 @@ int cli_getaddr(char** args);
  */
 int cli_disconnect(char** args);
 
+/**
+ * @brief Sends a 'getheaders' message to specified peer.
+ * 
+ * @param args The index of the peer.
+ * @return The exit code.
+ */
+int cli_getheaders(char** args);
+
+
 //// LINE HANDLING FUNCTIONS ////
 
 /**
