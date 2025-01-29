@@ -119,6 +119,12 @@ static size_t build_version_payload(unsigned char* buf, size_t buf_size)
     return offset; // total payload size
 }
 
+/**
+ * build_message:
+ *   Creates a Bitcoin P2P message (header + payload) in `buf`.
+ *   The 'command' is zero-padded to 12 bytes. The payload is appended.
+ *   We compute the 4-byte double-SHA256 checksum.
+ */
 static size_t build_message(
     unsigned char* buf,
     size_t buf_size,
@@ -164,12 +170,10 @@ static size_t build_message(
 
 void list_connected_nodes()
 {
-    int node_count = 0;
     for (int i = 0; i < MAX_NODES; ++i)
     {
         if (nodes[i].is_connected == 1)
         {
-            node_count++;
             guarded_print_line("Node %d:", i);
             guarded_print_line(" IP Address: %s", nodes[i].ip_address);
             guarded_print_line(" Port: %u", nodes[i].port);
@@ -184,17 +188,13 @@ void list_connected_nodes()
                 nodes[i].fee_rate);
         }
     }
-    if (node_count == 0)
-    {
-        guarded_print_line("No nodes are currently connected.");
-    }
 }
 
 void send_getaddr_and_wait(int idx)
 {
     if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
     {
-        guarded_print("Invalid node index or node not connected.\n");
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
         return;
     }
 
@@ -217,12 +217,12 @@ void send_getaddr_and_wait(int idx)
     ssize_t bytes_sent = send(node->socket_fd, getaddr_msg, msg_len, 0);
     if (bytes_sent < 0)
     {
-        log_message(LOG_ERROR, log_filename, __FILE__,
-            "getaddr: Failed to send 'getaddr' message: %s", strerror(errno));
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'getaddr' message: %s", strerror(errno));
         return;
     }
 
-    log_message(LOG_INFO, log_filename, __FILE__, "getaddr: Sent 'getaddr' message.");
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'getaddr' message.");
     node->operation_in_progress = 1;
 
     // Wait for 10 seconds for a response
@@ -238,14 +238,14 @@ void send_getaddr_and_wait(int idx)
     // Receive the message in parts
     while (total_bytes_received < sizeof(bitcoin_msg_header))
     {
-        log_message(LOG_INFO, log_filename, __FILE__, "getaddr: Constructing message header from chunks");
+        log_message(LOG_INFO, log_filename, __FILE__, "first while receiving");
         bytes_received = recv(node->socket_fd, buffer + total_bytes_received,
             sizeof(buffer) - total_bytes_received - 1, 0);
         if (bytes_received <= 0)
         {
-            log_message(LOG_WARN, log_filename, __FILE__, "getaddr: Invalid message header chunk received: %s",
+            log_message(LOG_INFO, log_filename, __FILE__, "Recv 1 failed: %s",
                 strerror(errno));
-            // node->is_connected = 0;
+            node->is_connected = 0;
             node->operation_in_progress = 0;
             return;
         }
@@ -256,11 +256,11 @@ void send_getaddr_and_wait(int idx)
     size_t payload_len = hdr->length;
     size_t message_size = sizeof(bitcoin_msg_header) + payload_len;
     int retry_count = 0;
-    const int max_retries = 4;
+    const int max_retries = 1;
 
     while (total_bytes_received < message_size)
     {
-        log_message(LOG_INFO, log_filename, __FILE__, "getaddr: Constructing message content from chunks");
+        log_message(LOG_INFO, log_filename, __FILE__, "second while receiving");
         bytes_received = recv(node->socket_fd, buffer + total_bytes_received,
             sizeof(buffer) - total_bytes_received - 1, 0);
         if (bytes_received <= 0)
@@ -268,19 +268,20 @@ void send_getaddr_and_wait(int idx)
             if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
                 log_message(LOG_INFO, log_filename, __FILE__,
-                    "getaddr: Resource temporarily unavailable, continue receiving");
+                    "second while receiving inside if errno");
+                // Resource temporarily unavailable, continue receiving
 
                 if (++retry_count >= max_retries)
                 {
                     log_message(LOG_WARN, log_filename, __FILE__,
-                        "getaddr: Max retries reached, stopping recv.");
-                    // node->is_connected = 0;
-                    // node->operation_in_progress = 0;
+                        "Max retries reached, stopping recv.");
+                    node->is_connected = 0;
+                    node->operation_in_progress = 0;
                     break;
                 }
                 continue;
             }
-            log_message(LOG_INFO, log_filename, __FILE__, "getaddr: Recv failed while constructing message contents: %s",
+            log_message(LOG_INFO, log_filename, __FILE__, "Recv failed: %s",
                 strerror(errno));
             node->is_connected = 0;
             node->operation_in_progress = 0;
@@ -312,7 +313,7 @@ void send_getaddr_and_wait(int idx)
             if (payload_len < 1)
             {
                 log_message(LOG_WARN, log_filename, __FILE__,
-                    "addr: Insufficient payload length to read address count");
+                    "Insufficient payload length to read address count");
                 return;
             }
 
@@ -320,23 +321,22 @@ void send_getaddr_and_wait(int idx)
             uint64_t count = read_var_int(payload_data + offset, &offset);
 
             // Log the count of address entries
-            log_message(LOG_INFO, log_filename, __FILE__, "addr: Address count: %llu", count);
+            log_message(LOG_INFO, log_filename, __FILE__, "Address count: %llu", count);
 
             // Ensure count does not exceed the maximum allowed entries
             if (count > 1000)
             {
                 log_message(LOG_WARN, log_filename, __FILE__,
-                    "addr: Address count exceeds maximum allowed: %llu", count);
+                    "Address count exceeds maximum allowed: %llu", count);
                 return;
             }
 
-            int ipv4_count = 0;
             for (uint64_t i = 0; i < count; ++i)
             {
                 if (offset + 30 > payload_len)
                 {
                     log_message(LOG_WARN, log_filename, __FILE__,
-                        "addr: Insufficient payload length for address entry");
+                        "Insufficient payload length for address entry");
                     return;
                 }
 
@@ -378,41 +378,31 @@ void send_getaddr_and_wait(int idx)
                 if (strcmp(ip_type, "IPv4") == 0 && is_valid_ipv4(ip_str) && !
                     is_in_private_network(ip_str))
                 {
-                    // // Guarded print of the IP address and port
-                    // guarded_print_line("Valid IPv4 Peer: %s:%u (timestamp: %u)", ip_str,
-                    //     port, timestamp);
+                    // Guarded print of the IP address and port
+                    guarded_print_line("Valid IPv4 Peer: %s:%u (timestamp: %u)", ip_str,
+                        port, timestamp);
 
                     // Add to peer queue
                     add_peer_to_queue(ip_str, port);
 
                     // Log the result if valid
                     log_message(LOG_INFO, log_filename, __FILE__,
-                        "addr: Received valid IPv4 address: %s:%u (timestamp: %u)",
+                        "Received valid IPv4 address: %s:%u (timestamp: %u)",
                         ip_str, port, timestamp);
-
-                    ipv4_count++;
                 }
                 else if (strcmp(ip_type, "IPv6") == 0)
                 {
                     // Log the IPv6 addresses if needed
                     log_message(LOG_INFO, log_filename, __FILE__,
-                        "addr: Received IPv6 address: %s:%u (timestamp: %u)",
+                        "Received IPv6 address: %s:%u (timestamp: %u)",
                         ip_str, port, timestamp);
                 }
-            }
-            if (ipv4_count == 0)
-            {
-                guarded_print_line("addr: No valid IPv4 addresses received");
-            }
-            else
-            {
-                guarded_print_line("addr: Received and saved %d valid IPv4 addresses", ipv4_count);
             }
 
             if (offset != payload_len)
             {
                 log_message(LOG_WARN, log_filename, __FILE__,
-                    "addr: Remaining bytes after processing: %zu",
+                    "Remaining bytes after processing: %zu",
                     payload_len - offset);
             }
         }
@@ -425,7 +415,6 @@ void send_getaddr_and_wait(int idx)
 
     node->operation_in_progress = 0;
 }
-
 
 /**
  * send_addr:
@@ -453,14 +442,8 @@ ssize_t send_addr(int sockfd, const char* ip_addr)
         return -1;
     }
 
-    // Limit the number of peers to 1000
-    if (peer_count > 1000)
-    {
-        peer_count = 1000;
-    }
-
-    // Allocate memory for address payload
-    size_t payload_size = 1 + peer_count * (sizeof(uint32_t) + sizeof(uint64_t) + sizeof(struct sockaddr_in6));
+    // Allocate memory for address payload (IPv4 to IPv6-mapped)
+    size_t payload_size = peer_count * sizeof(struct sockaddr_in6);
     unsigned char* addr_payload = malloc(payload_size);
     if (!addr_payload)
     {
@@ -469,47 +452,34 @@ ssize_t send_addr(int sockfd, const char* ip_addr)
         return -1;
     }
 
-    // Populate address payload
-    unsigned char* p = addr_payload;
-    *p++ = (unsigned char)peer_count;
-
+    // Populate address payload with peer data (IPv6-mapped addresses for IPv4)
     for (int i = 0; i < peer_count; ++i)
     {
-        // Add timestamp
-        uint32_t timestamp = (uint32_t)time(NULL);
-        memcpy(p, &timestamp, sizeof(uint32_t));
-        p += sizeof(uint32_t);
+        struct sockaddr_in6* addr = (struct sockaddr_in6*)&addr_payload[i * sizeof(
+            struct sockaddr_in6)];
+        memset(addr, 0, sizeof(struct sockaddr_in6));
+        addr->sin6_family = AF_INET6;
+        addr->sin6_port = htons(peers[i].port);
+        addr->sin6_addr.s6_addr[10] = 0xFF;
+        addr->sin6_addr.s6_addr[11] = 0xFF;
+        inet_pton(AF_INET, peers[i].ip, &addr->sin6_addr.s6_addr[12]);
 
-        // Add service flags (NODE_NETWORK)
-        uint64_t services = 0x01;
-        memcpy(p, &services, sizeof(uint64_t));
-        p += sizeof(uint64_t);
-
-        // Convert IPv4 to IPv6-mapped IPv4 and add address
-        struct sockaddr_in6 addr;
-        memset(&addr, 0, sizeof(struct sockaddr_in6));
-        addr.sin6_family = AF_INET6;
-        addr.sin6_port = htons(peers[i].port);
-        addr.sin6_addr.s6_addr[10] = 0xFF;
-        addr.sin6_addr.s6_addr[11] = 0xFF;
-        if (inet_pton(AF_INET, peers[i].ip, &addr.sin6_addr.s6_addr[12]) != 1)
-        {
-            log_message(LOG_INFO, log_filename, __FILE__, "Invalid IP address: %s", peers[i].ip);
-            continue; // Skip invalid addresses
-        }
-
-        memcpy(p, &addr, sizeof(struct sockaddr_in6));
-        p += sizeof(struct sockaddr_in6);
-
-        // Log the address being added
         char ip_str[INET6_ADDRSTRLEN];
-        inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, INET6_ADDRSTRLEN);
-        log_message(LOG_INFO, log_filename, __FILE__, "Adding address: %s:%d", ip_str, peers[i].port);
+        inet_ntop(AF_INET6, &addr->sin6_addr, ip_str, INET6_ADDRSTRLEN);
+        if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr))
+        {
+            struct in_addr ipv4_addr;
+            memcpy(&ipv4_addr, &addr->sin6_addr.s6_addr[12], 4);
+            inet_ntop(AF_INET, &ipv4_addr, ip_str, INET_ADDRSTRLEN);
+        }
+        log_message(LOG_INFO, log_filename, __FILE__, "Sending address: %s:%d", ip_str,
+            peers[i].port);
     }
 
     // Prepare message buffer
     unsigned char addr_msg[sizeof(bitcoin_msg_header) + payload_size];
-    size_t msg_len = build_message(addr_msg, sizeof(addr_msg), "addr", addr_payload, payload_size);
+    size_t msg_len = build_message(addr_msg, sizeof(addr_msg), "addr", addr_payload,
+        payload_size);
 
     if (msg_len == 0)
     {
@@ -527,10 +497,10 @@ ssize_t send_addr(int sockfd, const char* ip_addr)
     }
     else
     {
-        log_message(LOG_INFO, log_filename, __FILE__, "Successfully sent addresses");
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "Successfully sent addresses");
     }
 
-    // Free allocated memory
     free(peers);
     free(addr_payload);
 
@@ -921,7 +891,7 @@ int connect_to_peer(const char* ip_addr)
         return -1;
     }
 
-    guarded_print("[+] Connected to peer %s:%d\n", ip_addr, BITCOIN_MAINNET_PORT);
+    printf("[+] Connected to peer %s:%d\n", ip_addr, BITCOIN_MAINNET_PORT);
 
     // Build the 'version' payload
     unsigned char version_payload[200];
@@ -958,7 +928,7 @@ int connect_to_peer(const char* ip_addr)
         close(sockfd);
         return -1;
     }
-    guarded_print("[+] Sent 'version' message (%zd bytes).\n", bytes_sent);
+    printf("[+] Sent 'version' message (%zd bytes).\n", bytes_sent);
 
     char log_filename[256];
     snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
@@ -969,7 +939,7 @@ int connect_to_peer(const char* ip_addr)
     bool connected = false;
     for (int i = 0; i < 4; ++i)
     {
-        guarded_print("for loop waiting for messages %d\n", i);
+        printf("for loop waiting for messages %d\n", i);
         ssize_t n = recv(sockfd, recv_buf, sizeof(recv_buf), 0);
         if (n < 0)
         {
@@ -985,18 +955,18 @@ int connect_to_peer(const char* ip_addr)
         if (n == 0)
         {
             // Peer closed the connection
-            guarded_print("[i] Peer closed the connection.\n");
+            printf("[i] Peer closed the connection.\n");
             break;
         }
 
         // If we have at least a full header, parse it
         if (n < (ssize_t)sizeof(bitcoin_msg_header))
         {
-            guarded_print("[!] Received %zd bytes (less than header size 24).\n", n);
+            printf("[!] Received %zd bytes (less than header size 24).\n", n);
             continue;
         }
 
-        guarded_print("[<] Received %zd bytes.\n", n);
+        printf("[<] Received %zd bytes.\n", n);
 
         // Cast to a header
         bitcoin_msg_header* hdr = (bitcoin_msg_header*)recv_buf;
@@ -1008,14 +978,14 @@ int connect_to_peer(const char* ip_addr)
             memset(cmd_name, 0, sizeof(cmd_name));
             memcpy(cmd_name, hdr->command, 12);
 
-            guarded_print("[<] Received command: '%s'\n", cmd_name);
+            printf("[<] Received command: '%s'\n", cmd_name);
 
             // Determine the payload length & pointer
             size_t payload_len = hdr->length;
 
             if (n < (ssize_t)(sizeof(bitcoin_msg_header) + payload_len))
             {
-                guarded_print("[!] Incomplete message; got %zd bytes, expected %zu.\n",
+                printf("[!] Incomplete message; got %zd bytes, expected %zu.\n",
                     n, sizeof(bitcoin_msg_header) + payload_len);
                 continue;
             }
@@ -1031,7 +1001,7 @@ int connect_to_peer(const char* ip_addr)
                 }
                 else
                 {
-                    guarded_print("[+] Sent 'verack' message.\n");
+                    printf("[+] Sent 'verack' message.\n");
                 }
                 connected = true;
             }
@@ -1043,13 +1013,13 @@ int connect_to_peer(const char* ip_addr)
             else
             {
                 // Unhandled command
-                guarded_print("[!] Unhandled command: '%s' (payload size=%u)\n",
+                printf("[!] Unhandled command: '%s' (payload size=%u)\n",
                     cmd_name, hdr->length);
             }
         }
         else
         {
-            guarded_print("[!] Unexpected magic bytes (0x%08X).\n", hdr->magic);
+            printf("[!] Unexpected magic bytes (0x%08X).\n", hdr->magic);
         }
     }
     if (connected == true)
@@ -1093,11 +1063,10 @@ void disconnect(int node_id)
 
     node->is_connected = 0;
 
-    //// This code is causing stack-buffer-overflow
-    // if (pthread_cancel(node->thread) != 0)
-    // {
-    //     perror("Failed to cancel thread for peer");
-    // }
+    if (pthread_cancel(node->thread) != 0)
+    {
+        perror("Failed to cancel thread for peer");
+    }
 
     log_message(LOG_INFO, log_filename, __FILE__,
         "Successfully disconnected from node %s:%u", node->ip_address,
