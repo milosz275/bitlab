@@ -27,6 +27,7 @@ Node nodes[MAX_NODES];
 void parse_inv_message(const unsigned char* payload, size_t payload_len);
 size_t build_getblocks_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count);
 size_t write_var_int(unsigned char* buf, uint64_t value);
+unsigned char* load_blocks_from_file(const char* filename, size_t* payload_len);
 
 /**
  * compute_checksum:
@@ -873,6 +874,32 @@ void* peer_communication(void* arg)
                 int idx = get_idx(node->ip_address);
                 send_headers(idx, start_hash, stop_hash);
             }
+            else if (strcmp(cmd_name, "getblocks") == 0)
+            {
+                // Log the received getblocks message
+                log_message(LOG_INFO, log_filename, __FILE__, "Received 'getblocks' message.");
+
+                // Handle the getblocks request
+                size_t payload_len;
+                unsigned char* payload = load_blocks_from_file("blocks.dat", &payload_len);
+                if (!payload)
+                {
+                    log_message(LOG_ERROR, log_filename, __FILE__, "Failed to load blocks from file");
+                }
+                else
+                {
+                    ssize_t bytes_sent = send(node->socket_fd, payload, payload_len, 0);
+                    if (bytes_sent < 0)
+                    {
+                        log_message(LOG_ERROR, log_filename, __FILE__, "Failed to send blocks: %s", strerror(errno));
+                    }
+                    else
+                    {
+                        log_message(LOG_INFO, log_filename, __FILE__, "Sent blocks to node %s", node->ip_address);
+                    }
+                    free(payload);
+                }
+            }
             // Info about compact blocks is saved but handling of compact blocks is not implemented
             else if (strcmp(cmd_name, "sendcmpct") == 0)
             {
@@ -1387,6 +1414,47 @@ void send_headers(int idx, const unsigned char* start_hash, const unsigned char*
     log_message(LOG_INFO, log_filename, __FILE__, "Sent 'headers' message.");
 }
 
+void save_blocks_to_file(const unsigned char* payload, size_t payload_len, const char* filename)
+{
+    FILE* file = fopen(filename, "wb");
+    if (!file)
+    {
+        perror("Failed to open file for writing");
+        return;
+    }
+
+    fwrite(payload, 1, payload_len, file);
+    fclose(file);
+    guarded_print("Blocks saved to file: %s\n", filename);
+}
+
+unsigned char* load_blocks_from_file(const char* filename, size_t* payload_len)
+{
+    FILE* file = fopen(filename, "rb");
+    if (!file)
+    {
+        perror("Failed to open file for reading");
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    *payload_len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    unsigned char* payload = (unsigned char*)malloc(*payload_len);
+    if (!payload)
+    {
+        perror("Failed to allocate memory");
+        fclose(file);
+        return NULL;
+    }
+
+    fread(payload, 1, *payload_len, file);
+    fclose(file);
+    guarded_print("Blocks loaded from file: %s\n", filename);
+    return payload;
+}
+
 void send_getblocks_and_wait(int idx)
 {
     if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
@@ -1433,10 +1501,18 @@ void send_getblocks_and_wait(int idx)
     tv.tv_usec = 0;
     setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
 
-    // Receive the response
-    unsigned char buffer[4096];
-    ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0);
-    if (bytes_received < 0)
+    // Increase buffer size to handle larger responses
+    unsigned char buffer[32768];
+    size_t total_bytes_received = 0;
+    ssize_t bytes_received;
+
+    // Receive the message in parts
+    while ((bytes_received = recv(node->socket_fd, buffer + total_bytes_received, sizeof(buffer) - total_bytes_received - 1, 0)) > 0)
+    {
+        total_bytes_received += bytes_received;
+    }
+
+    if (bytes_received < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
     {
         log_message(LOG_INFO, log_filename, __FILE__,
             "[Error] Failed to receive response: %s", strerror(errno));
@@ -1449,7 +1525,10 @@ void send_getblocks_and_wait(int idx)
 
     // Process the response and print to CLI
     guarded_print("Received response to 'getblocks' message:\n");
-    parse_inv_message(buffer, bytes_received);
+    parse_inv_message(buffer, total_bytes_received);
+
+    // Save the blocks to a file
+    save_blocks_to_file(buffer, total_bytes_received, "blocks.dat");
 }
 
 size_t build_getblocks_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count)
