@@ -24,6 +24,8 @@
 // Global array to hold connected nodes
 Node nodes[MAX_NODES];
 
+void parse_inv_message(const unsigned char* payload, size_t payload_len);
+size_t build_getblocks_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count);
 size_t write_var_int(unsigned char* buf, uint64_t value);
 
 /**
@@ -857,7 +859,6 @@ void* peer_communication(void* arg)
                 memcpy(&version, payload_data + offset, 4);
                 offset += 4;
 
-                uint8_t hash_count = payload_data[offset++];
                 unsigned char start_hash[32];
                 memcpy(start_hash, payload_data + offset, 32);
                 offset += 32;
@@ -1372,7 +1373,7 @@ void send_headers(int idx, const unsigned char* start_hash, const unsigned char*
     header->magic = htole32(BITCOIN_MAINNET_MAGIC);
     strncpy(header->command, "headers", 12);
     header->length = htole32(offset - sizeof(bitcoin_msg_header));
-    header->checksum = calculate_checksum(headers_msg + sizeof(bitcoin_msg_header), offset - sizeof(bitcoin_msg_header));
+    compute_checksum(headers_msg + sizeof(bitcoin_msg_header), offset - sizeof(bitcoin_msg_header), header->checksum);
 
     // Send the 'headers' message
     ssize_t bytes_sent = send(node->socket_fd, headers_msg, offset, 0);
@@ -1384,4 +1385,132 @@ void send_headers(int idx, const unsigned char* start_hash, const unsigned char*
     }
 
     log_message(LOG_INFO, log_filename, __FILE__, "Sent 'headers' message.");
+}
+
+void send_getblocks_and_wait(int idx)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    // Define block locator and locator count
+    unsigned char block_locator[MAX_LOCATOR_COUNT * 32];
+    int locator_count = 1; // Set to 1 to request blocks starting from the latest known block
+
+    // Load the latest known block hash
+    load_latest_known_block_hash(block_locator);
+
+    // Build the 'getblocks' message
+    unsigned char getblocks_msg[sizeof(bitcoin_msg_header) + 4 + 1 + (MAX_LOCATOR_COUNT * 32) + 32];
+    size_t msg_len = build_getblocks_message(getblocks_msg, sizeof(getblocks_msg), block_locator, locator_count);
+    if (msg_len == 0)
+    {
+        fprintf(stderr, "[Error] Failed to build 'getblocks' message.\n");
+        return;
+    }
+
+    // Send the 'getblocks' message
+    ssize_t bytes_sent = send(node->socket_fd, getblocks_msg, msg_len, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'getblocks' message: %s", strerror(errno));
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'getblocks' message.");
+    node->operation_in_progress = 1;
+
+    // Wait for 10 seconds for a response
+    struct timeval tv;
+    tv.tv_sec = 10;
+    tv.tv_usec = 0;
+    setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    // Receive the response
+    unsigned char buffer[4096];
+    ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0);
+    if (bytes_received < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to receive response: %s", strerror(errno));
+        node->operation_in_progress = 0;
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'getblocks' message.");
+    node->operation_in_progress = 0;
+
+    // Process the response and print to CLI
+    guarded_print("Received response to 'getblocks' message:\n");
+    parse_inv_message(buffer, bytes_received);
+}
+
+size_t build_getblocks_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count)
+{
+    if (buffer_size < sizeof(bitcoin_msg_header) + 37)
+        return 0;
+
+    unsigned char payload[4 + 1 + (locator_count * 32) + 32];
+
+    // Set protocol version (4 bytes)
+    uint32_t version = htonl(70015);
+    memcpy(payload, &version, 4);
+
+    // Set block locator count (var_int encoding)
+    size_t offset = 4;
+    offset += write_var_int(payload + offset, locator_count);
+
+    // Copy block locator hashes
+    memcpy(payload + offset, block_locator, locator_count * 32);
+    offset += locator_count * 32;
+
+    // Set hash_stop (32 bytes of zeros for max 500 blocks)
+    memset(payload + offset, 0, 32);
+    offset += 32;
+
+    // Ensure buffer is large enough
+    if (offset > buffer_size)
+        return 0;
+
+    // Build final message
+    return build_message(buffer, buffer_size, "getblocks", payload, offset);
+}
+
+void parse_inv_message(const unsigned char* payload, size_t payload_len)
+{
+    size_t offset = 0;
+    uint64_t count = read_var_int(payload + offset, &offset);
+
+    guarded_print("Inventory count: %llu\n", count);
+
+    for (uint64_t i = 0; i < count; i++)
+    {
+        if (offset + 36 > payload_len)
+        {
+            guarded_print("Insufficient payload length for inventory entry\n");
+            return;
+        }
+
+        uint32_t type;
+        memcpy(&type, payload + offset, 4);
+        offset += 4;
+
+        unsigned char hash[32];
+        memcpy(hash, payload + offset, 32);
+        offset += 32;
+
+        guarded_print("Inventory item %llu: Type: %u, Hash: ", i + 1, type);
+        for (int j = 0; j < 32; j++)
+        {
+            guarded_print("%02x", hash[j]);
+        }
+        guarded_print("\n");
+    }
 }
