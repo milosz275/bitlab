@@ -29,6 +29,7 @@ void parse_inv_message(const unsigned char* payload, size_t payload_len);
 void handle_inv_message(int idx, const unsigned char* payload, size_t payload_len);
 size_t build_getblocks_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count);
 size_t write_var_int(unsigned char* buf, uint64_t value);
+void decode_transactions(const unsigned char* block_data, size_t block_len);
 
 /**
  * compute_checksum:
@@ -1695,11 +1696,6 @@ void handle_inv_message(int idx, const unsigned char* payload, size_t payload_le
     }
 }
 
-void handle_inv_response(int idx, const unsigned char* buffer, size_t bytes_received)
-{
-    handle_inv_message(idx, buffer, bytes_received);
-}
-
 size_t build_getdata_message(unsigned char* buffer, size_t buffer_size, const unsigned char* hashes, size_t hash_count)
 {
     if (buffer_size < sizeof(bitcoin_msg_header) + 1 + (hash_count * 36))
@@ -1768,28 +1764,17 @@ void send_getdata_and_wait(int idx, const unsigned char* hashes, size_t hash_cou
     log_message(LOG_INFO, log_filename, __FILE__, "Sent 'getdata' message.");
     node->operation_in_progress = 1;
 
-    // Wait for 60 seconds for a response (increased timeout)
+    // Wait for 20 seconds for a response (increased timeout)
     struct timeval tv;
-    tv.tv_sec = 60;
+    tv.tv_sec = 20;
     tv.tv_usec = 0;
     setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
 
     // Receive the response
     unsigned char buffer[32768];
-    ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0);
-    if (bytes_received < 0)
-    {
-        log_message(LOG_INFO, log_filename, __FILE__,
-            "[Error] Failed to receive response: %s", strerror(errno));
-        node->operation_in_progress = 0;
-        return;
-    }
+    ssize_t bytes_received;
 
-    log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'getdata' message.");
-    node->operation_in_progress = 0;
-
-    // Check if the response is an 'inv' message
-    if (bytes_received >= sizeof(bitcoin_msg_header))
+    while ((bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0)) > 0)
     {
         bitcoin_msg_header* hdr = (bitcoin_msg_header*)buffer;
         if (hdr->magic == BITCOIN_MAINNET_MAGIC)
@@ -1798,29 +1783,21 @@ void send_getdata_and_wait(int idx, const unsigned char* hashes, size_t hash_cou
             memset(cmd_name, 0, sizeof(cmd_name));
             memcpy(cmd_name, hdr->command, 12);
 
-            if (strcmp(cmd_name, "inv") == 0)
+            if (strcmp(cmd_name, "block") == 0)
             {
-                printf("Received 'inv' response:\n");
-                handle_inv_response(idx, buffer + sizeof(bitcoin_msg_header), bytes_received - sizeof(bitcoin_msg_header));
-                return;
+                log_message(LOG_INFO, log_filename, __FILE__, "Received 'block' message.");
+                decode_transactions(buffer + sizeof(bitcoin_msg_header), hdr->length);
             }
         }
     }
 
-    // Save the response to a file
-    char filename[256];
-    snprintf(filename, sizeof(filename), "getdata_response_%s.dat", node->ip_address);
-    FILE* file = fopen(filename, "wb");
-    if (file)
+    if (bytes_received < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
     {
-        fwrite(buffer, 1, bytes_received, file);
-        fclose(file);
-        log_message(LOG_INFO, log_filename, __FILE__, "Saved response to file: %s", filename);
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to receive block message: %s", strerror(errno));
     }
-    else
-    {
-        log_message(LOG_ERROR, log_filename, __FILE__, "Failed to open file for writing: %s", filename);
-    }
+
+    node->operation_in_progress = 0;
 }
 
 /**
@@ -1963,7 +1940,7 @@ void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count)
     node->operation_in_progress = 0;
 
     // Process the response
-    if (bytes_received >= sizeof(bitcoin_msg_header))
+    if (bytes_received >= (ssize_t)sizeof(bitcoin_msg_header))
     {
         bitcoin_msg_header* hdr = (bitcoin_msg_header*)buffer;
         if (hdr->magic == BITCOIN_MAINNET_MAGIC)
@@ -1977,7 +1954,7 @@ void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count)
             if (strcmp(cmd_name, "inv") == 0)
             {
                 printf("Received 'inv' response:\n");
-                handle_inv_response(idx, buffer + sizeof(bitcoin_msg_header), bytes_received - sizeof(bitcoin_msg_header));
+                handle_inv_message(idx, buffer + sizeof(bitcoin_msg_header), bytes_received - sizeof(bitcoin_msg_header));
             }
             else
             {
@@ -1995,4 +1972,74 @@ void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count)
     }
 
     free(inv_msg);
+}
+
+void decode_transactions(const unsigned char* block_data, size_t block_len)
+{
+    (void)block_len; // Mark block_len as unused to avoid the warning
+
+    size_t offset = 0;
+
+    // Skip the block header (80 bytes)
+    offset += 80;
+
+    // Read the number of transactions (var_int)
+    uint64_t tx_count = read_var_int(block_data + offset, &offset);
+
+    printf("Number of transactions: %lu\n", tx_count);
+
+    for (uint64_t i = 0; i < tx_count; i++)
+    {
+        // Decode each transaction (simplified for demonstration)
+        printf("Transaction %lu:\n", i + 1);
+
+        // Read transaction version (4 bytes)
+        uint32_t tx_version;
+        memcpy(&tx_version, block_data + offset, 4);
+        offset += 4;
+        printf("  Version: %u\n", tx_version);
+
+        // Read the number of inputs (var_int)
+        uint64_t input_count = read_var_int(block_data + offset, &offset);
+        printf("  Number of inputs: %lu\n", input_count);
+
+        // Read each input (simplified)
+        for (uint64_t j = 0; j < input_count; j++)
+        {
+            // Skip previous output (32 bytes hash + 4 bytes index)
+            offset += 36;
+
+            // Read script length (var_int)
+            uint64_t script_len = read_var_int(block_data + offset, &offset);
+
+            // Skip script and sequence (script_len + 4 bytes)
+            offset += script_len + 4;
+        }
+
+        // Read the number of outputs (var_int)
+        uint64_t output_count = read_var_int(block_data + offset, &offset);
+        printf("  Number of outputs: %lu\n", output_count);
+
+        // Read each output (simplified)
+        for (uint64_t j = 0; j < output_count; j++)
+        {
+            // Read value (8 bytes)
+            uint64_t value;
+            memcpy(&value, block_data + offset, 8);
+            offset += 8;
+            printf("    Value: %lu\n", value);
+
+            // Read script length (var_int)
+            uint64_t script_len = read_var_int(block_data + offset, &offset);
+
+            // Skip script (script_len bytes)
+            offset += script_len;
+        }
+
+        // Read lock time (4 bytes)
+        uint32_t lock_time;
+        memcpy(&lock_time, block_data + offset, 4);
+        offset += 4;
+        printf("  Lock time: %u\n", lock_time);
+    }
 }
