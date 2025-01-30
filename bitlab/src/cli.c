@@ -145,6 +145,13 @@ static cli_command cli_commands[] =
         .cli_command_detailed_desc = " * getblocks - Sends 'getblocks'........",
         .cli_command_usage = "getblocks [idx of node]"
     },
+    {
+    .cli_command = &cli_inv,
+    .cli_command_name = "inv",
+    .cli_command_brief_desc = "Sends an 'inv' message to the specified peer.",
+    .cli_command_detailed_desc = " * inv - Sends an 'inv' message to the specified peer using the existing blocks.dat file.",
+    .cli_command_usage = "inv [idx of node]"
+    },
 }; // do not add NULLs at the end
 
 void print_help()
@@ -880,6 +887,50 @@ int cli_getblocks(char** args)
     int idx = atoi(args[0]);
     guarded_print_line("Sending getblocks to %d", idx);
     send_getblocks_and_wait(idx);
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_inv(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Insufficient arguments provided for inv command");
+        print_usage("inv");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    if (args[1] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Too many arguments for inv command");
+        print_usage("inv");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    int idx = atoi(args[0]);
+
+    // Load inventory data from blocks.dat
+    size_t inv_len;
+    unsigned char* inv_data = load_blocks_from_file("blocks.dat", &inv_len);
+    if (!inv_data)
+    {
+        log_message(LOG_ERROR, BITLAB_LOG, __FILE__,
+            "Failed to load inventory data from blocks.dat");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    size_t inv_count = inv_len / 36;
+    printf("inv_len: %zu, inv_count: %zu\n", inv_len, inv_count);
+
+    // Send the 'inv' message
+    send_inv_and_wait(idx, inv_data, inv_count);
+
+    free(inv_data);
     pthread_mutex_unlock(&cli_mutex);
     return 0;
 }

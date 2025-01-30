@@ -193,6 +193,8 @@ int cli_getheaders(char** args);
  */
 int cli_getblocks(char** args);
 
+int cli_inv(char** args);
+
 
 //// LINE HANDLING FUNCTIONS ////
 
