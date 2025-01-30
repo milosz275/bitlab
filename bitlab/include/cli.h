@@ -9,7 +9,7 @@
 #define CLI_DELIM " "
 #define CLI_COMMANDS_NUM (int) (sizeof(cli_commands) / sizeof(cli_command))
 #define CLI_HISTORY_FILE "cli_history.txt"
-#define CLI_PREFIX "\033[38;5;220mBitLab \033[0m"
+#define CLI_PREFIX "BitLab> "
 
 /**
  * CLI command structure. Note that the only uninitialized field can be the cli_command_detailed_desc.
@@ -194,6 +194,8 @@ int cli_getheaders(char** args);
 int cli_getblocks(char** args);
 
 int cli_inv(char** args);
+
+int cli_getdata(char** args);
 
 
 //// LINE HANDLING FUNCTIONS ////
