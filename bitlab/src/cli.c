@@ -900,7 +900,6 @@ int cli_list(char** args)
     return 0;
 }
 
-
 int cli_clear(char** args)
 {
     pthread_mutex_lock(&cli_mutex);
