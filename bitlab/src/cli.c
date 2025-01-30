@@ -131,13 +131,13 @@ static cli_command cli_commands[] =
         .cli_command_detailed_desc = " * disconnect - Disconnects from node specified by the given node ID. Closes the socket, terminates the thread, and logs the disconnection.",
         .cli_command_usage = "disconnect [idx of node]"
     },
-    // {
-    //     .cli_command = &cli_getheaders,
-    //     .cli_command_name = "getheaders",
-    //     .cli_command_brief_desc = "Gets blockchain headers from the specified node.",
-    //     .cli_command_detailed_desc = " * getheaders - Sends 'getheaders'........",
-    //     .cli_command_usage = "getheaders [idx of node]"
-    // },
+    {
+        .cli_command = &cli_getheaders,
+        .cli_command_name = "getheaders",
+        .cli_command_brief_desc = "Gets blockchain headers from the specified node.",
+        .cli_command_detailed_desc = " * getheaders - Sends 'getheaders'........",
+        .cli_command_usage = "getheaders [idx of node]"
+    },
 }; // do not add NULLs at the end
 
 void print_help()
@@ -844,10 +844,10 @@ int cli_getheaders(char** args)
         pthread_mutex_unlock(&cli_mutex);
         return 1;
     }
-    // int idx = atoi(args[0]);
-    // guarded_print_line("Sending getheaders to %d", idx);
-    // send_getheaders_and_wait(idx);
-    // pthread_mutex_unlock(&cli_mutex);
+    int idx = atoi(args[0]);
+    guarded_print_line("Sending getheaders to %d", idx);
+    send_getheaders_and_wait(idx);
+    pthread_mutex_unlock(&cli_mutex);
     return 0;
 }
 
