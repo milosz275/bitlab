@@ -108,12 +108,11 @@ the following files:
 - `blocks.dat`: Block list file
 - `txs.dat`: Transaction list file -->
 
-Please feel free to link logs to your working directory:
+Please feel free to link logs and history to your current working directory:
 
 ```bash
-mkdir -p logs
-ln -s ~/.bitlab/logs/bitlab.log logs/bitlab.log
-ln -s ~/.bitlab/history/cli_history.txt logs/cli_history.txt
+ln -s ~/.bitlab/logs ./logs
+ln -s ~/.bitlab/history ./history
 ```
 
 > [!NOTE]
