@@ -33,7 +33,6 @@ network's inner workings using the Bitcoin protocol.
 - [Usage](#usage)
 - [Config directory](#config-directory)
 - [Features](#features)
-- [Acknowledgements](#acknowledgements)
 - [License](#license)
 
 ## Installation
@@ -109,12 +108,11 @@ the following files:
 - `blocks.dat`: Block list file
 - `txs.dat`: Transaction list file -->
 
-Please feel free to link logs to your working directory:
+Please feel free to link logs and history to your current working directory:
 
 ```bash
-mkdir -p logs
-ln -s ~/.bitlab/logs/bitlab.log logs/bitlab.log
-ln -s ~/.bitlab/history/cli_history.txt logs/cli_history.txt
+ln -s ~/.bitlab/logs ./logs
+ln -s ~/.bitlab/history ./history
 ```
 
 > [!NOTE]
@@ -157,8 +155,7 @@ Stay connected with active peers and monitor peer availability:
 - **Network Alerts:**
         - Send `alert` messages to notify peers of important network events.
         - `alert` has been deprecated because of security risks so it won't be implemented
-        in this
-        app. [documentation thread](https://bitcoin.org/en/alert/2016-11-01-alert-retirement#reasons-for-retirement)
+        in this app. [documentation thread](https://bitcoin.org/en/alert/2016-11-01-alert-retirement#reasons-for-retirement)
 
 ### 4. Error Handling & Diagnostics
 
@@ -190,10 +187,6 @@ Efficiently share and request blocks and transactions with peers:
         - `tx` message: Announce new transactions.
         - `block` message: Send or advertise a specific block.
         - `headers` message: Share up to 2,000 block headers for faster synchronization.
-
-## Acknowledgements
-
-- [Thread-safe logging](https://github.com/milosz275/secure-chat/blob/main/common/include/log.h)
 
 ## License
 

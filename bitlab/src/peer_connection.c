@@ -1,3 +1,5 @@
+#include "peer_connection.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,49 +15,20 @@
 #include <pthread.h>
 #include <sys/time.h>
 #include <stdbool.h>
-
-#include <peer_connection.h>
-#include <peer_queue.h>
-#include <utils.h>
-#include <ip.h>
 #include <bits/pthreadtypes.h>
 
-// Bitcoin mainnet magic bytes:
-#define BITCOIN_MAINNET_MAGIC 0xD9B4BEF9
-
-// Default Bitcoin mainnet port:
-#define BITCOIN_MAINNET_PORT 8333
-
-// Structure for Bitcoin P2P message header (24 bytes).
-// For reference: https://en.bitcoin.it/wiki/Protocol_documentation#Message_structure
-#pragma pack(push, 1)
-typedef struct
-{
-    unsigned int magic; // Magic value indicating message origin network
-    char command[12]; // ASCII command (null-padded)
-    unsigned int length; // Payload size (little-endian)
-    unsigned int checksum; // First 4 bytes of double SHA-256 of the payload
-} bitcoin_msg_header;
-#pragma pack(pop)
-
-// Node structure representing a peer connection
-typedef struct
-{
-    char ip_address[64]; // IP address of the peer
-    uint16_t port; // Port of the peer
-    int socket_fd; // Socket file descriptor for communication
-    pthread_t thread; // Thread assigned to this connection
-    int is_connected; // Connection status
-    int operation_in_progress; // is operation in progress
-    uint64_t compact_blocks; // Does peer want to use compact blocks
-    uint64_t fee_rate; // Min fee rate in sat/kB of transaction that peer allows
-} Node;
-
-// Maximum number of peers to track
-#define MAX_NODES 100
+#include "peer_queue.h"
+#include "utils.h"
+#include "log.h"
+#include "ip.h"
 
 // Global array to hold connected nodes
 Node nodes[MAX_NODES];
+
+void parse_inv_message(const unsigned char* payload, size_t payload_len);
+void handle_inv_message(int idx, const unsigned char* payload, size_t payload_len);
+size_t build_getblocks_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count);
+size_t write_var_int(unsigned char* buf, uint64_t value);
 
 /**
  * compute_checksum:
@@ -201,6 +174,97 @@ static size_t build_message(
     return sizeof(header) + payload_len;
 }
 
+size_t build_getheaders_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count)
+{
+    if (buffer_size < sizeof(bitcoin_msg_header) + 37)
+        return 0;
+
+    unsigned char payload[4 + 1 + (locator_count * 32) + 32];
+
+    // Set protocol version (4 bytes)
+    uint32_t version = htonl(70015);
+    memcpy(payload, &version, 4);
+
+    // Set block locator count (var_int encoding)
+    size_t offset = 4;
+    offset += write_var_int(payload + offset, locator_count);
+
+    // Copy block locator hashes
+    memcpy(payload + offset, block_locator, locator_count * 32);
+    offset += locator_count * 32;
+
+    // Set hash_stop (32 bytes of zeros for max 2000 headers)
+    memset(payload + offset, 0, 32);
+    offset += 32;
+
+    // Ensure buffer is large enough
+    if (offset > buffer_size)
+        return 0;
+
+    // Build final message
+    return build_message(buffer, buffer_size, "getheaders", payload, offset);
+}
+
+void compute_block_hash(const unsigned char* block_header, unsigned char* output_hash)
+{
+    unsigned char hash1[32];
+    SHA256(block_header, 80, hash1); // First SHA-256
+    SHA256(hash1, 32, output_hash);  // Second SHA-256
+}
+
+size_t write_var_int(unsigned char* buffer, uint64_t value)
+{
+    if (buffer == NULL)
+    {
+        // Calculate the size of the var_int encoding
+        if (value < 0xfd)
+            return 1;
+        else if (value <= 0xffff)
+            return 3;
+        else if (value <= 0xffffffff)
+            return 5;
+        else
+            return 9;
+    }
+
+    log_message(LOG_DEBUG, BITLAB_LOG, __FILE__, "write_var_int: buffer=%p, value=%lu", (void*)buffer, value);
+
+    if (value < 0xfd)
+    {
+        buffer[0] = (unsigned char)value;
+        return 1;
+    }
+    else if (value <= 0xffff)
+    {
+        buffer[0] = 0xfd;
+        buffer[1] = (unsigned char)(value & 0xff);
+        buffer[2] = (unsigned char)((value >> 8) & 0xff);
+        return 3;
+    }
+    else if (value <= 0xffffffff)
+    {
+        buffer[0] = 0xfe;
+        buffer[1] = (unsigned char)(value & 0xff);
+        buffer[2] = (unsigned char)((value >> 8) & 0xff);
+        buffer[3] = (unsigned char)((value >> 16) & 0xff);
+        buffer[4] = (unsigned char)((value >> 24) & 0xff);
+        return 5;
+    }
+    else
+    {
+        buffer[0] = 0xff;
+        buffer[1] = (unsigned char)(value & 0xff);
+        buffer[2] = (unsigned char)((value >> 8) & 0xff);
+        buffer[3] = (unsigned char)((value >> 16) & 0xff);
+        buffer[4] = (unsigned char)((value >> 24) & 0xff);
+        buffer[5] = (unsigned char)((value >> 32) & 0xff);
+        buffer[6] = (unsigned char)((value >> 40) & 0xff);
+        buffer[7] = (unsigned char)((value >> 48) & 0xff);
+        buffer[8] = (unsigned char)((value >> 56) & 0xff);
+        return 9;
+    }
+}
+
 void list_connected_nodes()
 {
     for (int i = 0; i < MAX_NODES; ++i)
@@ -221,6 +285,18 @@ void list_connected_nodes()
                 nodes[i].fee_rate);
         }
     }
+}
+
+int get_idx(const char* ip_address)
+{
+    for (int i = 0; i < MAX_NODES; ++i)
+    {
+        if (nodes[i].is_connected == 1 && strcmp(nodes[i].ip_address, ip_address) == 0)
+        {
+            return i;
+        }
+    }
+    return -1;
 }
 
 void send_getaddr_and_wait(int idx)
@@ -364,8 +440,7 @@ void send_getaddr_and_wait(int idx)
                 return;
             }
 
-            int ipv4_count = 0;
-            for (uint64_t i = 0; i < count; ++i)
+            for (uint64_t i = 0; i < count; i++)
             {
                 if (offset + 30 > payload_len)
                 {
@@ -412,9 +487,9 @@ void send_getaddr_and_wait(int idx)
                 if (strcmp(ip_type, "IPv4") == 0 && is_valid_ipv4(ip_str) && !
                     is_in_private_network(ip_str))
                 {
-                    // // Guarded print of the IP address and port
-                    // guarded_print_line("Valid IPv4 Peer: %s:%u (timestamp: %u)", ip_str,
-                    //     port, timestamp);
+                    // Guarded print of the IP address and port
+                    guarded_print_line("Valid IPv4 Peer: %s:%u (timestamp: %u)", ip_str,
+                        port, timestamp);
 
                     // Add to peer queue
                     add_peer_to_queue(ip_str, port);
@@ -423,8 +498,6 @@ void send_getaddr_and_wait(int idx)
                     log_message(LOG_INFO, log_filename, __FILE__,
                         "Received valid IPv4 address: %s:%u (timestamp: %u)",
                         ip_str, port, timestamp);
-
-                    ipv4_count++;
                 }
                 else if (strcmp(ip_type, "IPv6") == 0)
                 {
@@ -433,14 +506,6 @@ void send_getaddr_and_wait(int idx)
                         "Received IPv6 address: %s:%u (timestamp: %u)",
                         ip_str, port, timestamp);
                 }
-            }
-            if (ipv4_count == 0)
-            {
-                guarded_print_line("No valid IPv4 addresses received");
-            }
-            else
-            {
-                guarded_print_line("Received and saved %d valid IPv4 addresses", ipv4_count);
             }
 
             if (offset != payload_len)
@@ -459,7 +524,6 @@ void send_getaddr_and_wait(int idx)
 
     node->operation_in_progress = 0;
 }
-
 
 /**
  * send_addr:
@@ -487,14 +551,8 @@ ssize_t send_addr(int sockfd, const char* ip_addr)
         return -1;
     }
 
-    // Limit the number of peers to 1000
-    if (peer_count > 1000)
-    {
-        peer_count = 1000;
-    }
-
-    // Allocate memory for address payload
-    size_t payload_size = 1 + peer_count * (sizeof(uint32_t) + sizeof(uint64_t) + sizeof(struct sockaddr_in6));
+    // Allocate memory for address payload (IPv4 to IPv6-mapped)
+    size_t payload_size = peer_count * sizeof(struct sockaddr_in6);
     unsigned char* addr_payload = malloc(payload_size);
     if (!addr_payload)
     {
@@ -503,47 +561,34 @@ ssize_t send_addr(int sockfd, const char* ip_addr)
         return -1;
     }
 
-    // Populate address payload
-    unsigned char* p = addr_payload;
-    *p++ = (unsigned char)peer_count;
-
+    // Populate address payload with peer data (IPv6-mapped addresses for IPv4)
     for (int i = 0; i < peer_count; ++i)
     {
-        // Add timestamp
-        uint32_t timestamp = (uint32_t)time(NULL);
-        memcpy(p, &timestamp, sizeof(uint32_t));
-        p += sizeof(uint32_t);
+        struct sockaddr_in6* addr = (struct sockaddr_in6*)&addr_payload[i * sizeof(
+            struct sockaddr_in6)];
+        memset(addr, 0, sizeof(struct sockaddr_in6));
+        addr->sin6_family = AF_INET6;
+        addr->sin6_port = htons(peers[i].port);
+        addr->sin6_addr.s6_addr[10] = 0xFF;
+        addr->sin6_addr.s6_addr[11] = 0xFF;
+        inet_pton(AF_INET, peers[i].ip, &addr->sin6_addr.s6_addr[12]);
 
-        // Add service flags (NODE_NETWORK)
-        uint64_t services = 0x01;
-        memcpy(p, &services, sizeof(uint64_t));
-        p += sizeof(uint64_t);
-
-        // Convert IPv4 to IPv6-mapped IPv4 and add address
-        struct sockaddr_in6 addr;
-        memset(&addr, 0, sizeof(struct sockaddr_in6));
-        addr.sin6_family = AF_INET6;
-        addr.sin6_port = htons(peers[i].port);
-        addr.sin6_addr.s6_addr[10] = 0xFF;
-        addr.sin6_addr.s6_addr[11] = 0xFF;
-        if (inet_pton(AF_INET, peers[i].ip, &addr.sin6_addr.s6_addr[12]) != 1)
-        {
-            log_message(LOG_INFO, log_filename, __FILE__, "Invalid IP address: %s", peers[i].ip);
-            continue; // Skip invalid addresses
-        }
-
-        memcpy(p, &addr, sizeof(struct sockaddr_in6));
-        p += sizeof(struct sockaddr_in6);
-
-        // Log the address being added
         char ip_str[INET6_ADDRSTRLEN];
-        inet_ntop(AF_INET6, &addr.sin6_addr, ip_str, INET6_ADDRSTRLEN);
-        log_message(LOG_INFO, log_filename, __FILE__, "Adding address: %s:%d", ip_str, peers[i].port);
+        inet_ntop(AF_INET6, &addr->sin6_addr, ip_str, INET6_ADDRSTRLEN);
+        if (IN6_IS_ADDR_V4MAPPED(&addr->sin6_addr))
+        {
+            struct in_addr ipv4_addr;
+            memcpy(&ipv4_addr, &addr->sin6_addr.s6_addr[12], 4);
+            inet_ntop(AF_INET, &ipv4_addr, ip_str, INET_ADDRSTRLEN);
+        }
+        log_message(LOG_INFO, log_filename, __FILE__, "Sending address: %s:%d", ip_str,
+            peers[i].port);
     }
 
     // Prepare message buffer
     unsigned char addr_msg[sizeof(bitcoin_msg_header) + payload_size];
-    size_t msg_len = build_message(addr_msg, sizeof(addr_msg), "addr", addr_payload, payload_size);
+    size_t msg_len = build_message(addr_msg, sizeof(addr_msg), "addr", addr_payload,
+        payload_size);
 
     if (msg_len == 0)
     {
@@ -561,10 +606,10 @@ ssize_t send_addr(int sockfd, const char* ip_addr)
     }
     else
     {
-        log_message(LOG_INFO, log_filename, __FILE__, "Successfully sent addresses");
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "Successfully sent addresses");
     }
 
-    // Free allocated memory
     free(peers);
     free(addr_payload);
 
@@ -774,7 +819,6 @@ void* peer_communication(void* arg)
                 "[!] Received %s command ",
                 cmd_name);
 
-
             // Determine the payload length & pointer
             size_t payload_len = hdr->length;
             const unsigned char* payload_data = (const unsigned char*)buffer + sizeof(
@@ -788,6 +832,7 @@ void* peer_communication(void* arg)
                     bytes_received, sizeof(bitcoin_msg_header) + payload_len);
                 continue;
             }
+
             if (strcmp(cmd_name, "ping") == 0)
             {
                 // Typically 8-byte payload
@@ -832,6 +877,86 @@ void* peer_communication(void* arg)
                     log_message(LOG_WARN, log_filename, __FILE__,
                         "Invalid payload length for 'getaddr' command: %zu",
                         payload_len);
+                }
+            }
+            else if (strcmp(cmd_name, "getheaders") == 0)
+            {
+                // Parse the getheaders message
+                size_t offset = sizeof(bitcoin_msg_header);
+                uint32_t version;
+                memcpy(&version, payload_data + offset, 4);
+                offset += 4;
+
+                unsigned char start_hash[32];
+                memcpy(start_hash, payload_data + offset, 32);
+                offset += 32;
+
+                unsigned char stop_hash[32];
+                memcpy(stop_hash, payload_data + offset, 32);
+
+                // Log the received getheaders message
+                log_message(LOG_INFO, log_filename, __FILE__, "Received 'getheaders' message.");
+
+                // Send the headers in response
+                int idx = get_idx(node->ip_address);
+                send_headers(idx, start_hash, stop_hash);
+            }
+            else if (strcmp(cmd_name, "getblocks") == 0)
+            {
+                // Log the received getblocks message
+                log_message(LOG_INFO, log_filename, __FILE__, "Received 'getblocks' message.");
+
+                // Handle the getblocks request
+                size_t payload_len;
+                unsigned char* payload = load_blocks_from_file("blocks.dat", &payload_len);
+                if (!payload)
+                {
+                    log_message(LOG_ERROR, log_filename, __FILE__, "Failed to load blocks from file");
+                }
+                else
+                {
+                    ssize_t bytes_sent = send(node->socket_fd, payload, payload_len, 0);
+                    if (bytes_sent < 0)
+                    {
+                        log_message(LOG_ERROR, log_filename, __FILE__, "Failed to send blocks: %s", strerror(errno));
+                    }
+                    else
+                    {
+                        log_message(LOG_INFO, log_filename, __FILE__, "Sent blocks to node %s", node->ip_address);
+                    }
+                    free(payload);
+                }
+            }
+            else if (strcmp(cmd_name, "inv") == 0)
+            {
+                // Handle the inv message
+                log_message(LOG_INFO, log_filename, __FILE__, "Received 'inv' message.");
+                int idx = get_idx(node->ip_address);
+                handle_inv_message(idx, payload_data, payload_len);
+            }
+            else if (strcmp(cmd_name, "getdata") == 0)
+            {
+                // Handle the getdata message
+                log_message(LOG_INFO, log_filename, __FILE__, "Received 'getdata' message.");
+                // Load the requested data from file and send it
+                size_t data_len;
+                unsigned char* data = load_blocks_from_file("data.dat", &data_len);
+                if (!data)
+                {
+                    log_message(LOG_ERROR, log_filename, __FILE__, "Failed to load data from file");
+                }
+                else
+                {
+                    ssize_t bytes_sent = send(node->socket_fd, data, data_len, 0);
+                    if (bytes_sent < 0)
+                    {
+                        log_message(LOG_ERROR, log_filename, __FILE__, "Failed to send data: %s", strerror(errno));
+                    }
+                    else
+                    {
+                        log_message(LOG_INFO, log_filename, __FILE__, "Sent data to node %s", node->ip_address);
+                    }
+                    free(data);
                 }
             }
             // Info about compact blocks is saved but handling of compact blocks is not implemented
@@ -955,7 +1080,7 @@ int connect_to_peer(const char* ip_addr)
         return -1;
     }
 
-    guarded_print("[+] Connected to peer %s:%d\n", ip_addr, BITCOIN_MAINNET_PORT);
+    printf("[+] Connected to peer %s:%d\n", ip_addr, BITCOIN_MAINNET_PORT);
 
     // Build the 'version' payload
     unsigned char version_payload[200];
@@ -992,7 +1117,7 @@ int connect_to_peer(const char* ip_addr)
         close(sockfd);
         return -1;
     }
-    guarded_print("[+] Sent 'version' message (%zd bytes).\n", bytes_sent);
+    printf("[+] Sent 'version' message (%zd bytes).\n", bytes_sent);
 
     char log_filename[256];
     snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log",
@@ -1003,7 +1128,7 @@ int connect_to_peer(const char* ip_addr)
     bool connected = false;
     for (int i = 0; i < 4; ++i)
     {
-        guarded_print("for loop waiting for messages %d\n", i);
+        printf("for loop waiting for messages %d\n", i);
         ssize_t n = recv(sockfd, recv_buf, sizeof(recv_buf), 0);
         if (n < 0)
         {
@@ -1019,18 +1144,18 @@ int connect_to_peer(const char* ip_addr)
         if (n == 0)
         {
             // Peer closed the connection
-            guarded_print("[i] Peer closed the connection.\n");
+            printf("[i] Peer closed the connection.\n");
             break;
         }
 
         // If we have at least a full header, parse it
         if (n < (ssize_t)sizeof(bitcoin_msg_header))
         {
-            guarded_print("[!] Received %zd bytes (less than header size 24).\n", n);
+            printf("[!] Received %zd bytes (less than header size 24).\n", n);
             continue;
         }
 
-        guarded_print("[<] Received %zd bytes.\n", n);
+        printf("[<] Received %zd bytes.\n", n);
 
         // Cast to a header
         bitcoin_msg_header* hdr = (bitcoin_msg_header*)recv_buf;
@@ -1042,14 +1167,14 @@ int connect_to_peer(const char* ip_addr)
             memset(cmd_name, 0, sizeof(cmd_name));
             memcpy(cmd_name, hdr->command, 12);
 
-            guarded_print("[<] Received command: '%s'\n", cmd_name);
+            printf("[<] Received command: '%s'\n", cmd_name);
 
             // Determine the payload length & pointer
             size_t payload_len = hdr->length;
 
             if (n < (ssize_t)(sizeof(bitcoin_msg_header) + payload_len))
             {
-                guarded_print("[!] Incomplete message; got %zd bytes, expected %zu.\n",
+                printf("[!] Incomplete message; got %zd bytes, expected %zu.\n",
                     n, sizeof(bitcoin_msg_header) + payload_len);
                 continue;
             }
@@ -1065,7 +1190,7 @@ int connect_to_peer(const char* ip_addr)
                 }
                 else
                 {
-                    guarded_print("[+] Sent 'verack' message.\n");
+                    printf("[+] Sent 'verack' message.\n");
                 }
                 connected = true;
             }
@@ -1077,13 +1202,13 @@ int connect_to_peer(const char* ip_addr)
             else
             {
                 // Unhandled command
-                guarded_print("[!] Unhandled command: '%s' (payload size=%u)\n",
+                printf("[!] Unhandled command: '%s' (payload size=%u)\n",
                     cmd_name, hdr->length);
             }
         }
         else
         {
-            guarded_print("[!] Unexpected magic bytes (0x%08X).\n", hdr->magic);
+            printf("[!] Unexpected magic bytes (0x%08X).\n", hdr->magic);
         }
     }
     if (connected == true)
@@ -1135,4 +1260,739 @@ void disconnect(int node_id)
     log_message(LOG_INFO, log_filename, __FILE__,
         "Successfully disconnected from node %s:%u", node->ip_address,
         node->port);
+}
+
+void print_block_header(const unsigned char* header)
+{
+    uint32_t version;
+    unsigned char prev_block[32];
+    unsigned char merkle_root[32];
+    uint32_t timestamp;
+    uint32_t bits;
+    uint32_t nonce;
+
+    memcpy(&version, header, 4);
+    memcpy(prev_block, header + 4, 32);
+    memcpy(merkle_root, header + 36, 32);
+    memcpy(&timestamp, header + 68, 4);
+    memcpy(&bits, header + 72, 4);
+    memcpy(&nonce, header + 76, 4);
+
+    printf("Version: %u\n", version);
+    printf("Previous Block Hash: ");
+    for (int i = 0; i < 32; i++) printf("%02x", prev_block[i]);
+    printf("\n");
+    printf("Merkle Root: ");
+    for (int i = 0; i < 32; i++) printf("%02x", merkle_root[i]);
+    printf("\n");
+    printf("Timestamp: %u\n", timestamp);
+    printf("Bits: %u\n", bits);
+    printf("Nonce: %u\n", nonce);
+    printf("\n");
+}
+
+void parse_headers_message(const unsigned char* payload, size_t payload_len)
+{
+    size_t offset = 0;
+    FILE* file = fopen(HEADERS_FILE, "ab");
+    if (!file)
+    {
+        perror("Failed to open headers file");
+        return;
+    }
+
+    while (offset + 80 <= payload_len)
+    {
+        print_block_header(payload + offset);
+        fwrite(payload + offset, 80, 1, file);
+        offset += 80;
+    }
+
+    fclose(file);
+}
+
+void load_latest_known_block_hash(unsigned char* block_hash)
+{
+    FILE* file = fopen(HEADERS_FILE, "rb");
+    if (!file)
+    {
+        // No known blocks, use genesis block hash
+        memset(block_hash, 0, 32);
+        return;
+    }
+
+    fseek(file, -80, SEEK_END);
+    fread(block_hash, 32, 1, file);
+    fclose(file);
+}
+
+void send_getheaders_and_wait(int idx)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    // Define block locator and locator count
+    unsigned char block_locator[MAX_LOCATOR_COUNT * 32];
+    int locator_count = 1; // Set to 1 to request headers starting from the latest known block
+
+    // Load the latest known block hash
+    load_latest_known_block_hash(block_locator);
+
+    // Build the 'getheaders' message
+    unsigned char getheaders_msg[sizeof(bitcoin_msg_header) + 4 + 1 + (MAX_LOCATOR_COUNT * 32) + 32];
+    size_t msg_len = build_getheaders_message(getheaders_msg, sizeof(getheaders_msg), block_locator, locator_count);
+    if (msg_len == 0)
+    {
+        fprintf(stderr, "[Error] Failed to build 'getheaders' message.\n");
+        return;
+    }
+
+    // Send the 'getheaders' message
+    ssize_t bytes_sent = send(node->socket_fd, getheaders_msg, msg_len, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'getheaders' message: %s", strerror(errno));
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'getheaders' message.");
+    node->operation_in_progress = 1;
+
+    // Wait for 10 seconds for a response
+    struct timeval tv;
+    tv.tv_sec = 10;
+    tv.tv_usec = 0;
+    setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    // Receive the response
+    unsigned char buffer[4096];
+    ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0);
+    if (bytes_received < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to receive response: %s", strerror(errno));
+        node->operation_in_progress = 0;
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'getheaders' message.");
+    node->operation_in_progress = 0;
+
+    // Process the response and print to CLI
+    guarded_print("Received response to 'getheaders' message:\n");
+    parse_headers_message(buffer, bytes_received);
+}
+
+void send_headers(int idx, const unsigned char* start_hash, const unsigned char* stop_hash)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    // Open the headers file
+    FILE* file = fopen(HEADERS_FILE, "rb");
+    if (!file)
+    {
+        perror("Failed to open headers file");
+        return;
+    }
+
+    // Find the starting block header
+    unsigned char buffer[81];
+    size_t headers_count = 0;
+    int found_start = 0;
+    while (fread(buffer, 80, 1, file) == 1)
+    {
+        if (memcmp(buffer, start_hash, 32) == 0)
+        {
+            found_start = 1;
+            break;
+        }
+    }
+
+    if (!found_start)
+    {
+        fclose(file);
+        fprintf(stderr, "[Error] Start hash not found in headers file.\n");
+        return;
+    }
+
+    // Build the 'headers' message
+    unsigned char headers_msg[sizeof(bitcoin_msg_header) + 1 + (MAX_HEADERS_COUNT * 81)];
+    size_t offset = sizeof(bitcoin_msg_header);
+    headers_msg[offset++] = 0; // Placeholder for count
+
+    while (headers_count < MAX_HEADERS_COUNT && fread(buffer, 80, 1, file) == 1)
+    {
+        memcpy(headers_msg + offset, buffer, 80);
+        offset += 80;
+        headers_msg[offset++] = 0; // Transaction count (var_int, 0 for headers only)
+        headers_count++;
+
+        if (memcmp(buffer, stop_hash, 32) == 0)
+        {
+            break;
+        }
+    }
+
+    fclose(file);
+
+    // Set the count
+    headers_msg[sizeof(bitcoin_msg_header)] = headers_count;
+
+    // Build the message header
+    bitcoin_msg_header* header = (bitcoin_msg_header*)headers_msg;
+    header->magic = htole32(BITCOIN_MAINNET_MAGIC);
+    strncpy(header->command, "headers", 12);
+    header->length = htole32(offset - sizeof(bitcoin_msg_header));
+    compute_checksum(headers_msg + sizeof(bitcoin_msg_header), offset - sizeof(bitcoin_msg_header), header->checksum);
+
+    // Send the 'headers' message
+    ssize_t bytes_sent = send(node->socket_fd, headers_msg, offset, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'headers' message: %s", strerror(errno));
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'headers' message.");
+}
+
+void save_blocks_to_file(const unsigned char* payload, size_t payload_len, const char* filename)
+{
+    FILE* file = fopen(filename, "wb");
+    if (!file)
+    {
+        perror("Failed to open file for writing");
+        return;
+    }
+
+    fwrite(payload, 1, payload_len, file);
+    fclose(file);
+    guarded_print("Blocks saved to file: %s\n", filename);
+}
+
+unsigned char* load_blocks_from_file(const char* filename, size_t* payload_len)
+{
+    FILE* file = fopen(filename, "rb");
+    if (!file)
+    {
+        perror("Failed to open file for reading");
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    *payload_len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    unsigned char* payload = (unsigned char*)malloc(*payload_len);
+    if (!payload)
+    {
+        perror("Failed to allocate memory");
+        fclose(file);
+        return NULL;
+    }
+
+    fread(payload, 1, *payload_len, file);
+    fclose(file);
+    guarded_print("Blocks loaded from file: %s\n", filename);
+    return payload;
+}
+
+void send_getblocks_and_wait(int idx)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    // Define block locator and locator count
+    unsigned char block_locator[MAX_LOCATOR_COUNT * 32];
+    int locator_count = 1; // Set to 1 to request blocks starting from the latest known block
+
+    // Load the latest known block hash
+    load_latest_known_block_hash(block_locator);
+
+    // Build the 'getblocks' message
+    unsigned char getblocks_msg[sizeof(bitcoin_msg_header) + 4 + 1 + (MAX_LOCATOR_COUNT * 32) + 32];
+    size_t msg_len = build_getblocks_message(getblocks_msg, sizeof(getblocks_msg), block_locator, locator_count);
+    if (msg_len == 0)
+    {
+        fprintf(stderr, "[Error] Failed to build 'getblocks' message.\n");
+        return;
+    }
+
+    // Send the 'getblocks' message
+    ssize_t bytes_sent = send(node->socket_fd, getblocks_msg, msg_len, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'getblocks' message: %s", strerror(errno));
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'getblocks' message.");
+    node->operation_in_progress = 1;
+
+    // Wait for 10 seconds for a response
+    struct timeval tv;
+    tv.tv_sec = 10;
+    tv.tv_usec = 0;
+    setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    // Increase buffer size to handle larger responses
+    unsigned char buffer[32768];
+    size_t total_bytes_received = 0;
+    ssize_t bytes_received;
+
+    // Receive the message in parts
+    while ((bytes_received = recv(node->socket_fd, buffer + total_bytes_received, sizeof(buffer) - total_bytes_received - 1, 0)) > 0)
+    {
+        total_bytes_received += bytes_received;
+    }
+
+    if (bytes_received < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to receive response: %s", strerror(errno));
+        node->operation_in_progress = 0;
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'getblocks' message.");
+    node->operation_in_progress = 0;
+
+    // Process the response and print to CLI
+    guarded_print("Received response to 'getblocks' message:\n");
+    parse_inv_message(buffer, total_bytes_received);
+
+    // Save the blocks to a file
+    save_blocks_to_file(buffer, total_bytes_received, "blocks.dat");
+}
+
+size_t build_getblocks_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count)
+{
+    if (buffer_size < sizeof(bitcoin_msg_header) + 37)
+        return 0;
+
+    unsigned char payload[4 + 1 + (locator_count * 32) + 32];
+
+    // Set protocol version (4 bytes)
+    uint32_t version = htonl(70015);
+    memcpy(payload, &version, 4);
+
+    // Set block locator count (var_int encoding)
+    size_t offset = 4;
+    offset += write_var_int(payload + offset, locator_count);
+
+    // Copy block locator hashes
+    memcpy(payload + offset, block_locator, locator_count * 32);
+    offset += locator_count * 32;
+
+    // Set hash_stop (32 bytes of zeros for max 500 blocks)
+    memset(payload + offset, 0, 32);
+    offset += 32;
+
+    // Ensure buffer is large enough
+    if (offset > buffer_size)
+        return 0;
+
+    // Build final message
+    return build_message(buffer, buffer_size, "getblocks", payload, offset);
+}
+
+void parse_inv_message(const unsigned char* payload, size_t payload_len)
+{
+    size_t offset = 0;
+    uint64_t count = read_var_int(payload + offset, &offset);
+
+    guarded_print("Inventory count: %llu\n", count);
+
+    for (uint64_t i = 0; i < count; i++)
+    {
+        if (offset + 36 > payload_len)
+        {
+            guarded_print("Insufficient payload length for inventory entry\n");
+            return;
+        }
+
+        uint32_t type;
+        memcpy(&type, payload + offset, 4);
+        offset += 4;
+
+        unsigned char hash[32];
+        memcpy(hash, payload + offset, 32);
+        offset += 32;
+
+        guarded_print("Inventory item %llu: Type: %u, Hash: ", i + 1, type);
+        for (int j = 0; j < 32; j++)
+        {
+            guarded_print("%02x", hash[j]);
+        }
+        guarded_print("\n");
+    }
+}
+
+void handle_inv_message(int idx, const unsigned char* payload, size_t payload_len)
+{
+    size_t offset = 0;
+    uint64_t count = read_var_int(payload + offset, &offset);
+
+    if (count == 0 || count > 50000)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Invalid inventory count in inv message: %llu", count);
+        return;
+    }
+
+    unsigned char hashes[count * 32];
+    size_t hash_count = 0;
+
+    for (uint64_t i = 0; i < count; i++)
+    {
+        if (offset + 36 > payload_len)
+        {
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                "Insufficient payload length for inventory entry");
+            return;
+        }
+
+        uint32_t type;
+        memcpy(&type, payload + offset, 4);
+        offset += 4;
+
+        if (type == 2) // Type 2 for block (1 for transaction)
+        {
+            memcpy(hashes + (hash_count * 32), payload + offset, 32);
+            hash_count++;
+        }
+        offset += 32;
+    }
+
+    if (hash_count > 0)
+    {
+        send_getdata_and_wait(idx, hashes, hash_count);
+    }
+}
+
+void handle_inv_response(int idx, const unsigned char* buffer, size_t bytes_received)
+{
+    handle_inv_message(idx, buffer, bytes_received);
+}
+
+size_t build_getdata_message(unsigned char* buffer, size_t buffer_size, const unsigned char* hashes, size_t hash_count)
+{
+    if (buffer_size < sizeof(bitcoin_msg_header) + 1 + (hash_count * 36))
+        return 0;
+
+    unsigned char payload[1 + (hash_count * 36)];
+
+    // Set inventory count (var_int encoding)
+    size_t offset = 0;
+    offset += write_var_int(payload + offset, hash_count);
+
+    // Copy inventory vectors (type + hash)
+    for (size_t i = 0; i < hash_count; i++)
+    {
+        uint32_t type = htonl(2); // Assuming type 2 for block (1 for transaction)
+        memcpy(payload + offset, &type, 4);
+        offset += 4;
+        memcpy(payload + offset, hashes + (i * 32), 32);
+        offset += 32;
+    }
+
+    // Ensure buffer is large enough
+    if (offset > buffer_size)
+        return 0;
+
+    // Build final message
+    return build_message(buffer, buffer_size, "getdata", payload, offset);
+}
+
+void send_getdata_and_wait(int idx, const unsigned char* hashes, size_t hash_count)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    if (hash_count == 0 || hash_count > 50000)
+    {
+        fprintf(stderr, "[Error] Invalid hash count. Must be between 1 and 50000.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    // Build the 'getdata' message
+    unsigned char getdata_msg[sizeof(bitcoin_msg_header) + 1 + (hash_count * 36)];
+    size_t msg_len = build_getdata_message(getdata_msg, sizeof(getdata_msg), hashes, hash_count);
+    if (msg_len == 0)
+    {
+        fprintf(stderr, "[Error] Failed to build 'getdata' message.\n");
+        return;
+    }
+
+    // Send the 'getdata' message
+    ssize_t bytes_sent = send(node->socket_fd, getdata_msg, msg_len, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'getdata' message: %s", strerror(errno));
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'getdata' message.");
+    node->operation_in_progress = 1;
+
+    // Wait for 60 seconds for a response (increased timeout)
+    struct timeval tv;
+    tv.tv_sec = 60;
+    tv.tv_usec = 0;
+    setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    // Receive the response
+    unsigned char buffer[32768];
+    ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0);
+    if (bytes_received < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to receive response: %s", strerror(errno));
+        node->operation_in_progress = 0;
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'getdata' message.");
+    node->operation_in_progress = 0;
+
+    // Check if the response is an 'inv' message
+    if (bytes_received >= sizeof(bitcoin_msg_header))
+    {
+        bitcoin_msg_header* hdr = (bitcoin_msg_header*)buffer;
+        if (hdr->magic == BITCOIN_MAINNET_MAGIC)
+        {
+            char cmd_name[13];
+            memset(cmd_name, 0, sizeof(cmd_name));
+            memcpy(cmd_name, hdr->command, 12);
+
+            if (strcmp(cmd_name, "inv") == 0)
+            {
+                printf("Received 'inv' response:\n");
+                handle_inv_response(idx, buffer + sizeof(bitcoin_msg_header), bytes_received - sizeof(bitcoin_msg_header));
+                return;
+            }
+        }
+    }
+
+    // Save the response to a file
+    char filename[256];
+    snprintf(filename, sizeof(filename), "getdata_response_%s.dat", node->ip_address);
+    FILE* file = fopen(filename, "wb");
+    if (file)
+    {
+        fwrite(buffer, 1, bytes_received, file);
+        fclose(file);
+        log_message(LOG_INFO, log_filename, __FILE__, "Saved response to file: %s", filename);
+    }
+    else
+    {
+        log_message(LOG_ERROR, log_filename, __FILE__, "Failed to open file for writing: %s", filename);
+    }
+}
+
+/**
+ * @brief Builds an 'inv' message.
+ *
+ * This function builds an 'inv' message with the given inventory data.
+ *
+ * @param buffer The buffer to store the built message.
+ * @param buffer_size The size of the buffer.
+ * @param inv_data An array of inventory vectors (type + hash).
+ * @param inv_count The number of inventory vectors in the array.
+ * @return The size of the built message, or 0 on failure.
+ */
+size_t build_inv_message(unsigned char* buffer, size_t buffer_size, const unsigned char* inv_data, size_t inv_count)
+{
+    size_t var_int_size = write_var_int(NULL, inv_count); // Get the size of the var_int encoding
+    size_t payload_size = var_int_size + (inv_count * 36); // var_int size + 36 bytes per inventory vector
+
+    printf("inv_count: %zu, payload_size: %zu, buffer_size: %zu\n", inv_count, payload_size, buffer_size);
+
+    if (buffer_size < sizeof(bitcoin_msg_header) + payload_size)
+    {
+        printf("Buffer size is too small: buffer_size=%zu, required=%zu\n", buffer_size, sizeof(bitcoin_msg_header) + payload_size);
+        return 0;
+    }
+
+    unsigned char* payload = (unsigned char*)malloc(payload_size);
+    if (!payload)
+    {
+        printf("Failed to allocate memory for payload\n");
+        return 0;
+    }
+
+    // Set inventory count (var_int encoding)
+    size_t offset = 0;
+    offset += write_var_int(payload + offset, inv_count);
+    log_message(LOG_DEBUG, BITLAB_LOG, __FILE__, "After write_var_int: offset=%zu", offset);
+
+    // Copy inventory vectors (type + hash)
+    for (size_t i = 0; i < inv_count; i++)
+    {
+        memcpy(payload + offset, inv_data + (i * 36), 36);
+        offset += 36;
+    }
+    printf("After copying inventory vectors: offset=%zu\n", offset);
+
+    // Build final message
+    size_t message_size = build_message(buffer, buffer_size, "inv", payload, payload_size);
+    printf("Built message size: %zu\n", message_size);
+
+    free(payload);
+    return message_size;
+}
+
+/**
+ * @brief Sends an 'inv' message to the peer.
+ *
+ * This function sends an 'inv' message to the peer identified by the given index.
+ * It is used to advertise the knowledge of one or more objects (blocks or transactions).
+ * The inventory data is provided as input to the function.
+ *
+ * @param idx The index of the peer in the nodes array.
+ * @param inv_data An array of inventory vectors (type + hash).
+ * @param inv_count The number of inventory vectors in the array.
+ */
+void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    if (inv_count == 0 || inv_count > 50000)
+    {
+        fprintf(stderr, "[Error] Invalid inventory count. Must be between 1 and 50000.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    size_t var_int_size = write_var_int(NULL, inv_count); // Get the size of the var_int encoding
+    size_t payload_size = var_int_size + (inv_count * 36); // var_int size + 36 bytes per inventory vector
+    size_t inv_msg_size = sizeof(bitcoin_msg_header) + payload_size;
+
+    printf("inv_count: %zu, inv_msg_size: %zu\n", inv_count, inv_msg_size);
+
+    unsigned char* inv_msg = (unsigned char*)malloc(inv_msg_size);
+    if (!inv_msg)
+    {
+        fprintf(stderr, "[Error] Failed to allocate memory for 'inv' message.\n");
+        return;
+    }
+
+    size_t msg_len = build_inv_message(inv_msg, inv_msg_size, inv_data, inv_count);
+    printf("msg_len: %zu\n", msg_len);
+    if (msg_len == 0)
+    {
+        fprintf(stderr, "[Error] Failed to build 'inv' message.\n");
+        free(inv_msg);
+        return;
+    }
+
+    // Send the 'inv' message
+    ssize_t bytes_sent = send(node->socket_fd, inv_msg, msg_len, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'inv' message: %s", strerror(errno));
+        free(inv_msg);
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'inv' message.");
+    printf("Sent 'inv' message.\n");
+    node->operation_in_progress = 1;
+
+    // Wait for 10 seconds for a response
+    struct timeval tv;
+    tv.tv_sec = 10;
+    tv.tv_usec = 0;
+    setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    // Receive the response
+    unsigned char buffer[32768];
+    ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0);
+    if (bytes_received < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to receive response: %s", strerror(errno));
+        node->operation_in_progress = 0;
+        free(inv_msg);
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'inv' message.");
+    printf("Received response to 'inv' message.\n");
+    node->operation_in_progress = 0;
+
+    // Process the response
+    if (bytes_received >= sizeof(bitcoin_msg_header))
+    {
+        bitcoin_msg_header* hdr = (bitcoin_msg_header*)buffer;
+        if (hdr->magic == BITCOIN_MAINNET_MAGIC)
+        {
+            char cmd_name[13];
+            memset(cmd_name, 0, sizeof(cmd_name));
+            memcpy(cmd_name, hdr->command, 12);
+
+            printf("Received command: '%s'\n", cmd_name);
+
+            if (strcmp(cmd_name, "inv") == 0)
+            {
+                printf("Received 'inv' response:\n");
+                handle_inv_response(idx, buffer + sizeof(bitcoin_msg_header), bytes_received - sizeof(bitcoin_msg_header));
+            }
+            else
+            {
+                printf("Unhandled command: '%s'\n", cmd_name);
+            }
+        }
+        else
+        {
+            printf("Unexpected magic bytes (0x%08X).\n", hdr->magic);
+        }
+    }
+    else
+    {
+        printf("Received incomplete message.\n");
+    }
+
+    free(inv_msg);
 }

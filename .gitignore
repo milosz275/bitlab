@@ -49,6 +49,8 @@ CMakeCache.txt
 *.log
 logs/
 logs
+history/
+history
 
 # VSCode
 *.vc.*
@@ -58,3 +60,9 @@ logs
 
 # BitLab history
 .*history.txt
+
+# Testing
+*.test
+
+# Blockchain
+*.dat

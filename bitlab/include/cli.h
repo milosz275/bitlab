@@ -113,7 +113,7 @@ int cli_info(char** args);
 /**
  * Discovers Bitcoin peers.
  *
- * @param args The arguments passed to the function should be empty.
+ * @param args The arguments passed to the function should match those specified in 'help peerdiscovery'.
  * @return The exit code.
  */
 int cli_peer_discovery(char** args);
@@ -129,7 +129,7 @@ int cli_clear(char** args);
 /**
  * Prints CLI command help.
  *
- * @param args The arguments passed to this function should be empty.
+ * @param args The arguments passed to this function can be empty to get full program help or argument should specify one comand to get help for.
  * @return The exit code.
  */
 int cli_help(char** args);
@@ -176,6 +176,25 @@ int cli_getaddr(char** args);
  * @return The exit code.
  */
 int cli_disconnect(char** args);
+
+/**
+ * @brief Sends a 'getheaders' message to specified peer.
+ * 
+ * @param args The index of the peer.
+ * @return The exit code.
+ */
+int cli_getheaders(char** args);
+
+/**
+ * @brief Sends a 'getblocks' message to specified peer.
+ *
+ * @param args The index of the peer.
+ * @return The exit code.
+ */
+int cli_getblocks(char** args);
+
+int cli_inv(char** args);
+
 
 //// LINE HANDLING FUNCTIONS ////
 
