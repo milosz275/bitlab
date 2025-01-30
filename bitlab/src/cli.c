@@ -135,22 +135,29 @@ static cli_command cli_commands[] =
         .cli_command = &cli_getheaders,
         .cli_command_name = "getheaders",
         .cli_command_brief_desc = "Gets blockchain headers from the specified node.",
-        .cli_command_detailed_desc = " * getheaders - Sends 'getheaders'........",
+        .cli_command_detailed_desc = " * getheaders - Sends 'getheaders' and prints decoded 'headers' as a chain of block headers.",
         .cli_command_usage = "getheaders [idx of node]"
     },
     {
         .cli_command = &cli_getblocks,
         .cli_command_name = "getblocks",
-        .cli_command_brief_desc = "Gets......",
-        .cli_command_detailed_desc = " * getblocks - Sends 'getblocks'........",
+        .cli_command_brief_desc = "Gets block headers from given range",
+        .cli_command_detailed_desc = " * getblocks - Sends 'getblocks' message with fixed (dummy) interval to ask for 'inv' message. Obtains block hashes.",
         .cli_command_usage = "getblocks [idx of node]"
     },
     {
-    .cli_command = &cli_inv,
-    .cli_command_name = "inv",
-    .cli_command_brief_desc = "Sends an 'inv' message to the specified peer.",
-    .cli_command_detailed_desc = " * inv - Sends an 'inv' message to the specified peer using the existing blocks.dat file.",
-    .cli_command_usage = "inv [idx of node]"
+        .cli_command = &cli_inv,
+        .cli_command_name = "inv",
+        .cli_command_brief_desc = "Let's answer 'getblocks' manually or verbosely send advertisement about known blocks.",
+        .cli_command_detailed_desc = " * inv - Sends an 'inv' message to the specified peer using the existing blocks.dat file to advertise known blocks.",
+        .cli_command_usage = "inv [idx of node]"
+    },
+    {
+        .cli_command = &cli_getdata,
+        .cli_command_name = "getdata",
+        .cli_command_brief_desc = "Obtains transactions from given block.",
+        .cli_command_detailed_desc = " * getdata - Sends 'getdata' to a idx-th node with given block hashes. Retrieves transaction data from returned 'blocks' message.",
+        .cli_command_usage = "getdata [idx of node] [block hash 1] ..."
     },
 }; // do not add NULLs at the end
 
@@ -887,6 +894,90 @@ int cli_getblocks(char** args)
     int idx = atoi(args[0]);
     guarded_print_line("Sending getblocks to %d", idx);
     send_getblocks_and_wait(idx);
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_getdata(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "No arguments provided for getdata command");
+        print_usage("getdata");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    int idx = atoi(args[0]);
+    if (idx < 0 || idx >= MAX_NODES)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Invalid node index for getdata command");
+        print_usage("getdata");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    // Count the number of hashes provided
+    size_t hash_count = 0;
+    for (int i = 1; args[i] != NULL; i++)
+    {
+        hash_count++;
+    }
+
+    if (hash_count == 0)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "No hashes provided for getdata command");
+        print_usage("getdata");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    if (hash_count > 50000)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Too many hashes provided for getdata command");
+        print_usage("getdata");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    // Allocate memory for the hashes
+    unsigned char* hashes = malloc(hash_count * 32);
+    if (hashes == NULL)
+    {
+        log_message(LOG_ERROR, BITLAB_LOG, __FILE__,
+            "Failed to allocate memory for hashes");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    // Parse the hashes from the arguments
+    for (size_t i = 0; i < hash_count; i++)
+    {
+        if (strlen(args[i + 1]) != 64)
+        {
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                "Invalid hash length for getdata command");
+            print_usage("getdata");
+            free(hashes);
+            pthread_mutex_unlock(&cli_mutex);
+            return 1;
+        }
+
+        for (size_t j = 0; j < 32; j++)
+        {
+            sscanf(&args[i + 1][j * 2], "%2hhx", &hashes[i * 32 + j]);
+        }
+    }
+
+    guarded_print_line("Sending getdata to %d with %zu hashes", idx, hash_count);
+    send_getdata_and_wait(idx, hashes, hash_count);
+
+    free(hashes);
     pthread_mutex_unlock(&cli_mutex);
     return 0;
 }
