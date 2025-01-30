@@ -107,6 +107,9 @@ int connect_to_peer(const char* ip_addr);
  */
 void disconnect(int node_id);
 
+
+unsigned char* load_blocks_from_file(const char* filename, size_t* payload_len);
+
 /**
  * @brief Sends a 'getheaders' message to the peer and waits for a response.
  *
@@ -154,5 +157,18 @@ void send_getblocks_and_wait(int idx);
  * @param hash_count The number of hashes in the array.
  */
 void send_getdata_and_wait(int idx, const unsigned char* hashes, size_t hash_count);
+
+/**
+ * @brief Sends an 'inv' message to the peer and waits for a response.
+ *
+ * This function sends an 'inv' message to the peer identified by the given index
+ * and waits for a response. It is used to advertise the knowledge of one or more objects
+ * (blocks or transactions). The inventory data is provided as input to the function.
+ *
+ * @param idx The index of the peer in the nodes array.
+ * @param inv_data An array of inventory vectors (type + hash).
+ * @param inv_count The number of inventory vectors in the array.
+ */
+void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count);
 
 #endif // __PEER_CONNECTION_H

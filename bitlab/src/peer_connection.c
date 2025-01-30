@@ -28,7 +28,6 @@ void parse_inv_message(const unsigned char* payload, size_t payload_len);
 void handle_inv_message(int idx, const unsigned char* payload, size_t payload_len);
 size_t build_getblocks_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count);
 size_t write_var_int(unsigned char* buf, uint64_t value);
-unsigned char* load_blocks_from_file(const char* filename, size_t* payload_len);
 
 /**
  * compute_checksum:
@@ -212,29 +211,55 @@ void compute_block_hash(const unsigned char* block_header, unsigned char* output
     SHA256(hash1, 32, output_hash);  // Second SHA-256
 }
 
-size_t write_var_int(unsigned char* buf, uint64_t value)
+size_t write_var_int(unsigned char* buffer, uint64_t value)
 {
-    if (value < 0xFD)
+    if (buffer == NULL)
     {
-        buf[0] = value;
+        // Calculate the size of the var_int encoding
+        if (value < 0xfd)
+            return 1;
+        else if (value <= 0xffff)
+            return 3;
+        else if (value <= 0xffffffff)
+            return 5;
+        else
+            return 9;
+    }
+
+    printf("write_var_int: buffer=%p, value=%lu\n", buffer, value);
+
+    if (value < 0xfd)
+    {
+        buffer[0] = (unsigned char)value;
         return 1;
     }
-    else if (value <= 0xFFFF)
+    else if (value <= 0xffff)
     {
-        buf[0] = 0xFD;
-        *(uint16_t*)(buf + 1) = htole16((uint16_t)value);
+        buffer[0] = 0xfd;
+        buffer[1] = (unsigned char)(value & 0xff);
+        buffer[2] = (unsigned char)((value >> 8) & 0xff);
         return 3;
     }
-    else if (value <= 0xFFFFFFFF)
+    else if (value <= 0xffffffff)
     {
-        buf[0] = 0xFE;
-        *(uint32_t*)(buf + 1) = htole32((uint32_t)value);
+        buffer[0] = 0xfe;
+        buffer[1] = (unsigned char)(value & 0xff);
+        buffer[2] = (unsigned char)((value >> 8) & 0xff);
+        buffer[3] = (unsigned char)((value >> 16) & 0xff);
+        buffer[4] = (unsigned char)((value >> 24) & 0xff);
         return 5;
     }
     else
     {
-        buf[0] = 0xFF;
-        *(uint64_t*)(buf + 1) = htole64(value);
+        buffer[0] = 0xff;
+        buffer[1] = (unsigned char)(value & 0xff);
+        buffer[2] = (unsigned char)((value >> 8) & 0xff);
+        buffer[3] = (unsigned char)((value >> 16) & 0xff);
+        buffer[4] = (unsigned char)((value >> 24) & 0xff);
+        buffer[5] = (unsigned char)((value >> 32) & 0xff);
+        buffer[6] = (unsigned char)((value >> 40) & 0xff);
+        buffer[7] = (unsigned char)((value >> 48) & 0xff);
+        buffer[8] = (unsigned char)((value >> 56) & 0xff);
         return 9;
     }
 }
@@ -907,6 +932,31 @@ void* peer_communication(void* arg)
                 log_message(LOG_INFO, log_filename, __FILE__, "Received 'inv' message.");
                 int idx = get_idx(node->ip_address);
                 handle_inv_message(idx, payload_data, payload_len);
+            }
+            else if (strcmp(cmd_name, "getdata") == 0)
+            {
+                // Handle the getdata message
+                log_message(LOG_INFO, log_filename, __FILE__, "Received 'getdata' message.");
+                // Load the requested data from file and send it
+                size_t data_len;
+                unsigned char* data = load_blocks_from_file("data.dat", &data_len);
+                if (!data)
+                {
+                    log_message(LOG_ERROR, log_filename, __FILE__, "Failed to load data from file");
+                }
+                else
+                {
+                    ssize_t bytes_sent = send(node->socket_fd, data, data_len, 0);
+                    if (bytes_sent < 0)
+                    {
+                        log_message(LOG_ERROR, log_filename, __FILE__, "Failed to send data: %s", strerror(errno));
+                    }
+                    else
+                    {
+                        log_message(LOG_INFO, log_filename, __FILE__, "Sent data to node %s", node->ip_address);
+                    }
+                    free(data);
+                }
             }
             // Info about compact blocks is saved but handling of compact blocks is not implemented
             else if (strcmp(cmd_name, "sendcmpct") == 0)
@@ -1746,4 +1796,135 @@ void send_getdata_and_wait(int idx, const unsigned char* hashes, size_t hash_cou
     {
         log_message(LOG_ERROR, log_filename, __FILE__, "Failed to open file for writing: %s", filename);
     }
+}
+
+/**
+ * @brief Builds an 'inv' message.
+ *
+ * This function builds an 'inv' message with the given inventory data.
+ *
+ * @param buffer The buffer to store the built message.
+ * @param buffer_size The size of the buffer.
+ * @param inv_data An array of inventory vectors (type + hash).
+ * @param inv_count The number of inventory vectors in the array.
+ * @return The size of the built message, or 0 on failure.
+ */
+size_t build_inv_message(unsigned char* buffer, size_t buffer_size, const unsigned char* inv_data, size_t inv_count)
+{
+    size_t var_int_size = write_var_int(NULL, inv_count); // Get the size of the var_int encoding
+    size_t payload_size = var_int_size + (inv_count * 36); // var_int size + 36 bytes per inventory vector
+
+    printf("inv_count: %zu, payload_size: %zu, buffer_size: %zu\n", inv_count, payload_size, buffer_size);
+
+    if (buffer_size < sizeof(bitcoin_msg_header) + payload_size)
+        return 0;
+
+    unsigned char* payload = (unsigned char*)malloc(payload_size);
+    if (!payload)
+        return 0;
+
+    // Set inventory count (var_int encoding)
+    size_t offset = 0;
+    offset += write_var_int(payload + offset, inv_count);
+
+    // Copy inventory vectors (type + hash)
+    for (size_t i = 0; i < inv_count; i++)
+    {
+        memcpy(payload + offset, inv_data + (i * 36), 36);
+        offset += 36;
+    }
+
+    // Build final message
+    size_t message_size = build_message(buffer, buffer_size, "inv", payload, payload_size);
+
+    free(payload);
+    return message_size;
+}
+
+/**
+ * @brief Sends an 'inv' message to the peer.
+ *
+ * This function sends an 'inv' message to the peer identified by the given index.
+ * It is used to advertise the knowledge of one or more objects (blocks or transactions).
+ * The inventory data is provided as input to the function.
+ *
+ * @param idx The index of the peer in the nodes array.
+ * @param inv_data An array of inventory vectors (type + hash).
+ * @param inv_count The number of inventory vectors in the array.
+ */
+void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    if (inv_count == 0 || inv_count > 50000)
+    {
+        fprintf(stderr, "[Error] Invalid inventory count. Must be between 1 and 50000.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    size_t inv_msg_size = sizeof(bitcoin_msg_header) + 1 + (inv_count * 36);
+    printf("inv_count: %zu, inv_msg_size: %zu\n", inv_count, inv_msg_size);
+
+    unsigned char* inv_msg = (unsigned char*)malloc(inv_msg_size);
+    if (!inv_msg)
+    {
+        fprintf(stderr, "[Error] Failed to allocate memory for 'inv' message.\n");
+        return;
+    }
+
+    size_t msg_len = build_inv_message(inv_msg, inv_msg_size, inv_data, inv_count);
+    printf("msg_len: %zu\n", msg_len);
+    if (msg_len == 0)
+    {
+        fprintf(stderr, "[Error] Failed to build 'inv' message.\n");
+        free(inv_msg);
+        return;
+    }
+
+    // Send the 'inv' message
+    ssize_t bytes_sent = send(node->socket_fd, inv_msg, msg_len, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'inv' message: %s", strerror(errno));
+        free(inv_msg);
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'inv' message.");
+    node->operation_in_progress = 1;
+
+    // Wait for 10 seconds for a response
+    struct timeval tv;
+    tv.tv_sec = 10;
+    tv.tv_usec = 0;
+    setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    // Receive the response
+    unsigned char buffer[32768];
+    ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0);
+    if (bytes_received < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to receive response: %s", strerror(errno));
+        node->operation_in_progress = 0;
+        free(inv_msg);
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'inv' message.");
+    node->operation_in_progress = 0;
+
+    // Process the response (this part can be expanded based on the specific requirements)
+    // ...
+
+    free(inv_msg);
 }
