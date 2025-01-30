@@ -13,6 +13,12 @@
 // Default Bitcoin mainnet port:
 #define BITCOIN_MAINNET_PORT 8333
 
+#define htole16(x) ((uint16_t)((((x) & 0xFF) << 8) | (((x) >> 8) & 0xFF)))
+#define htole32(x) ((uint32_t)((((x) & 0xFF) << 24) | (((x) >> 8) & 0xFF00) | (((x) >> 16) & 0xFF) | (((x) >> 24) & 0xFF000000)))
+#define htole64(x) ((uint64_t)((((x) & 0xFF) << 56) | (((x) >> 8) & 0xFF00) | (((x) >> 16) & 0xFF0000) | (((x) >> 24) & 0xFF000000) | (((x) >> 32) & 0xFF00000000) | (((x) >> 40) & 0xFF0000000000) | (((x) >> 48) & 0xFF000000000000) | (((x) >> 56) & 0xFF00000000000000)))
+
+#define MAX_LOCATOR_COUNT 10
+
 // Structure for Bitcoin P2P message header (24 bytes).
 // For reference: https://en.bitcoin.it/wiki/Protocol_documentation#Message_structure
 #pragma pack(push, 1)
@@ -78,5 +84,15 @@ int connect_to_peer(const char* ip_addr);
  * @param node_id The ID of the node in the nodes array to disconnect from.
  */
 void disconnect(int node_id);
+
+/**
+ * @brief Sends a 'getheaders' message to the peer and waits for a response.
+ *
+ * This function sends a 'getheaders' message to the peer identified by the given index
+ * and waits for a response. It is used to request a list of known peers from the connected peer.
+ *
+ * @param idx The index of the peer in the nodes array.
+ */
+void send_getheaders_and_wait(int idx);
 
 #endif // __PEER_CONNECTION_H

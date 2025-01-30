@@ -24,6 +24,8 @@
 // Global array to hold connected nodes
 Node nodes[MAX_NODES];
 
+size_t write_var_int(unsigned char* buf, uint64_t value);
+
 /**
  * compute_checksum:
  *   Calculate the double-SHA256 of the payload, then copy the first 4 bytes
@@ -166,6 +168,71 @@ static size_t build_message(
     memcpy(buf + sizeof(header), payload, payload_len);
 
     return sizeof(header) + payload_len;
+}
+
+size_t build_getheaders_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count)
+{
+    if (buffer_size < sizeof(bitcoin_msg_header) + 37)
+        return 0;
+
+    unsigned char payload[4 + 1 + (locator_count * 32) + 32];
+
+    // Set protocol version (4 bytes)
+    uint32_t version = htonl(70015);
+    memcpy(payload, &version, 4);
+
+    // Set block locator count (var_int encoding)
+    size_t offset = 4;
+    offset += write_var_int(payload + offset, locator_count);
+
+    // Copy block locator hashes
+    memcpy(payload + offset, block_locator, locator_count * 32);
+    offset += locator_count * 32;
+
+    // Set hash_stop (32 bytes of zeros for max 2000 headers)
+    memset(payload + offset, 0, 32);
+    offset += 32;
+
+    // Ensure buffer is large enough
+    if (offset > buffer_size)
+        return 0;
+
+    // Build final message
+    return build_message(buffer, buffer_size, "getheaders", payload, offset);
+}
+
+void compute_block_hash(const unsigned char* block_header, unsigned char* output_hash)
+{
+    unsigned char hash1[32];
+    SHA256(block_header, 80, hash1); // First SHA-256
+    SHA256(hash1, 32, output_hash);  // Second SHA-256
+}
+
+size_t write_var_int(unsigned char* buf, uint64_t value)
+{
+    if (value < 0xFD)
+    {
+        buf[0] = value;
+        return 1;
+    }
+    else if (value <= 0xFFFF)
+    {
+        buf[0] = 0xFD;
+        *(uint16_t*)(buf + 1) = htole16((uint16_t)value);
+        return 3;
+    }
+    else if (value <= 0xFFFFFFFF)
+    {
+        buf[0] = 0xFE;
+        *(uint32_t*)(buf + 1) = htole32((uint32_t)value);
+        return 5;
+    }
+    else
+    {
+        buf[0] = 0xFF;
+        *(uint64_t*)(buf + 1) = htole64(value);
+        return 9;
+    }
 }
 
 void list_connected_nodes()
@@ -331,7 +398,7 @@ void send_getaddr_and_wait(int idx)
                 return;
             }
 
-            for (uint64_t i = 0; i < count; ++i)
+            for (uint64_t i = 0; i < count; i++)
             {
                 if (offset + 30 > payload_len)
                 {
@@ -1071,4 +1138,110 @@ void disconnect(int node_id)
     log_message(LOG_INFO, log_filename, __FILE__,
         "Successfully disconnected from node %s:%u", node->ip_address,
         node->port);
+}
+
+void print_block_header(const unsigned char* header)
+{
+    uint32_t version;
+    unsigned char prev_block[32];
+    unsigned char merkle_root[32];
+    uint32_t timestamp;
+    uint32_t bits;
+    uint32_t nonce;
+
+    memcpy(&version, header, 4);
+    memcpy(prev_block, header + 4, 32);
+    memcpy(merkle_root, header + 36, 32);
+    memcpy(&timestamp, header + 68, 4);
+    memcpy(&bits, header + 72, 4);
+    memcpy(&nonce, header + 76, 4);
+
+    printf("Version: %u\n", version);
+    printf("Previous Block Hash: ");
+    for (int i = 0; i < 32; i++) printf("%02x", prev_block[i]);
+    printf("\n");
+    printf("Merkle Root: ");
+    for (int i = 0; i < 32; i++) printf("%02x", merkle_root[i]);
+    printf("\n");
+    printf("Timestamp: %u\n", timestamp);
+    printf("Bits: %u\n", bits);
+    printf("Nonce: %u\n", nonce);
+    printf("\n");
+}
+
+void parse_headers_message(const unsigned char* payload, size_t payload_len)
+{
+    size_t offset = 0;
+    while (offset + 80 <= payload_len)
+    {
+        print_block_header(payload + offset);
+        offset += 80;
+    }
+}
+
+void send_getheaders_and_wait(int idx)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    // Define block locator and locator count
+    unsigned char block_locator[MAX_LOCATOR_COUNT][32];
+    int locator_count = 0;
+
+    // Initialize block locator with some values (this should be replaced with actual logic)
+    // For example, you can fill it with the latest known block hashes
+    memset(block_locator, 0, sizeof(block_locator));
+    locator_count = 1; // Set to 1 for simplicity, adjust as needed
+
+    // Build the 'getheaders' message
+    unsigned char getheaders_msg[sizeof(bitcoin_msg_header) + 4 + 1 + (MAX_LOCATOR_COUNT * 32) + 32];
+    size_t msg_len = build_getheaders_message(getheaders_msg, sizeof(getheaders_msg), block_locator, locator_count);
+    if (msg_len == 0)
+    {
+        fprintf(stderr, "[Error] Failed to build 'getheaders' message.\n");
+        return;
+    }
+
+    // Send the 'getheaders' message
+    ssize_t bytes_sent = send(node->socket_fd, getheaders_msg, msg_len, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'getheaders' message: %s", strerror(errno));
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'getheaders' message.");
+    node->operation_in_progress = 1;
+
+    // Wait for 10 seconds for a response
+    struct timeval tv;
+    tv.tv_sec = 10;
+    tv.tv_usec = 0;
+    setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    // Receive the response
+    unsigned char buffer[4096];
+    ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0);
+    if (bytes_received < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to receive response: %s", strerror(errno));
+        node->operation_in_progress = 0;
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'getheaders' message.");
+    node->operation_in_progress = 0;
+
+    // Process the response and print to CLI
+    guarded_print("Received response to 'getheaders' message:\n");
+    parse_headers_message(buffer, bytes_received);
 }
