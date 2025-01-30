@@ -30,6 +30,22 @@ static cli_command cli_commands[] =
         .cli_command_usage = "clear"
     },
     {
+        .cli_command = &cli_history,
+        .cli_command_name = "history",
+        .cli_command_brief_desc = "Prints command history.",
+        .cli_command_detailed_desc =
+        " * history - Displays the history of all entered commands for reference.",
+        .cli_command_usage = "history"
+    },
+    {
+        .cli_command = &cli_info,
+        .cli_command_name = "info",
+        .cli_command_brief_desc = "Prints program information.",
+        .cli_command_detailed_desc =
+        " * info - Displays information about BitLab program and the host machine.",
+        .cli_command_usage = "info"
+    },
+    {
         .cli_command = &cli_echo,
         .cli_command_name = "echo",
         .cli_command_brief_desc = "Echoes the input.",
@@ -60,22 +76,6 @@ static cli_command cli_commands[] =
         .cli_command_detailed_desc =
         " * help - Lists all available commands with their descriptions.",
         .cli_command_usage = "help [command]"
-    },
-    {
-        .cli_command = &cli_history,
-        .cli_command_name = "history",
-        .cli_command_brief_desc = "Prints command history.",
-        .cli_command_detailed_desc =
-        " * history - Displays the history of all entered commands for reference.",
-        .cli_command_usage = "history"
-    },
-    {
-        .cli_command = &cli_info,
-        .cli_command_name = "info",
-        .cli_command_brief_desc = "Prints program information.",
-        .cli_command_detailed_desc =
-        " * info - Displays information about BitLab program and the host machine.",
-        .cli_command_usage = "info"
     },
     {
         .cli_command = &cli_peer_discovery,
@@ -111,18 +111,18 @@ static cli_command cli_commands[] =
         .cli_command_usage = "whoami [-f | --full]",
     },
     {
-        .cli_command = &cli_getaddr,
-        .cli_command_name = "getaddr",
-        .cli_command_brief_desc = "Gets addresses from the specified node.",
-        .cli_command_detailed_desc = " * getaddr - Sends 'getaddr' command to peer and wait for response. Use with node index to specify the node. Prints IP addresses of returned nodes.",
-        .cli_command_usage = "getaddr [idx of node]"
-    },
-    {
         .cli_command = &cli_list,
         .cli_command_name = "list",
         .cli_command_brief_desc = "Lists connected nodes.",
         .cli_command_detailed_desc = " * list - Lists nodes connected with 'connect' command. Shows IP address, port, socket FD, thread ID, connection status, operation status, compact blocks, and fee rate.",
         .cli_command_usage = "list"
+    },
+    {
+        .cli_command = &cli_getaddr,
+        .cli_command_name = "getaddr",
+        .cli_command_brief_desc = "Gets addresses from the specified node.",
+        .cli_command_detailed_desc = " * getaddr - Sends 'getaddr' command to peer and wait for response. Use with node index to specify the node. Prints IP addresses of returned nodes.",
+        .cli_command_usage = "getaddr [idx of node]"
     },
     {
         .cli_command = &cli_disconnect,
