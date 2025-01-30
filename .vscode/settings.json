@@ -11,6 +11,7 @@
         "getdata",
         "getheaders",
         "getip",
+        "htole",
         "ipver",
         "libreadline",
         "lineptr",
