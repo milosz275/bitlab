@@ -19,6 +19,7 @@
 
 #include "peer_queue.h"
 #include "utils.h"
+#include "log.h"
 #include "ip.h"
 
 // Global array to hold connected nodes
@@ -226,7 +227,7 @@ size_t write_var_int(unsigned char* buffer, uint64_t value)
             return 9;
     }
 
-    printf("write_var_int: buffer=%p, value=%lu\n", buffer, value);
+    log_message(LOG_DEBUG, BITLAB_LOG, __FILE__, "write_var_int: buffer=%p, value=%lu", (void*)buffer, value);
 
     if (value < 0xfd)
     {
@@ -1694,6 +1695,11 @@ void handle_inv_message(int idx, const unsigned char* payload, size_t payload_le
     }
 }
 
+void handle_inv_response(int idx, const unsigned char* buffer, size_t bytes_received)
+{
+    handle_inv_message(idx, buffer, bytes_received);
+}
+
 size_t build_getdata_message(unsigned char* buffer, size_t buffer_size, const unsigned char* hashes, size_t hash_count)
 {
     if (buffer_size < sizeof(bitcoin_msg_header) + 1 + (hash_count * 36))
@@ -1782,6 +1788,25 @@ void send_getdata_and_wait(int idx, const unsigned char* hashes, size_t hash_cou
     log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'getdata' message.");
     node->operation_in_progress = 0;
 
+    // Check if the response is an 'inv' message
+    if (bytes_received >= sizeof(bitcoin_msg_header))
+    {
+        bitcoin_msg_header* hdr = (bitcoin_msg_header*)buffer;
+        if (hdr->magic == BITCOIN_MAINNET_MAGIC)
+        {
+            char cmd_name[13];
+            memset(cmd_name, 0, sizeof(cmd_name));
+            memcpy(cmd_name, hdr->command, 12);
+
+            if (strcmp(cmd_name, "inv") == 0)
+            {
+                printf("Received 'inv' response:\n");
+                handle_inv_response(idx, buffer + sizeof(bitcoin_msg_header), bytes_received - sizeof(bitcoin_msg_header));
+                return;
+            }
+        }
+    }
+
     // Save the response to a file
     char filename[256];
     snprintf(filename, sizeof(filename), "getdata_response_%s.dat", node->ip_address);
@@ -1817,15 +1842,22 @@ size_t build_inv_message(unsigned char* buffer, size_t buffer_size, const unsign
     printf("inv_count: %zu, payload_size: %zu, buffer_size: %zu\n", inv_count, payload_size, buffer_size);
 
     if (buffer_size < sizeof(bitcoin_msg_header) + payload_size)
+    {
+        printf("Buffer size is too small: buffer_size=%zu, required=%zu\n", buffer_size, sizeof(bitcoin_msg_header) + payload_size);
         return 0;
+    }
 
     unsigned char* payload = (unsigned char*)malloc(payload_size);
     if (!payload)
+    {
+        printf("Failed to allocate memory for payload\n");
         return 0;
+    }
 
     // Set inventory count (var_int encoding)
     size_t offset = 0;
     offset += write_var_int(payload + offset, inv_count);
+    log_message(LOG_DEBUG, BITLAB_LOG, __FILE__, "After write_var_int: offset=%zu", offset);
 
     // Copy inventory vectors (type + hash)
     for (size_t i = 0; i < inv_count; i++)
@@ -1833,9 +1865,11 @@ size_t build_inv_message(unsigned char* buffer, size_t buffer_size, const unsign
         memcpy(payload + offset, inv_data + (i * 36), 36);
         offset += 36;
     }
+    printf("After copying inventory vectors: offset=%zu\n", offset);
 
     // Build final message
     size_t message_size = build_message(buffer, buffer_size, "inv", payload, payload_size);
+    printf("Built message size: %zu\n", message_size);
 
     free(payload);
     return message_size;
@@ -1870,7 +1904,10 @@ void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count)
     char log_filename[256];
     snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
 
-    size_t inv_msg_size = sizeof(bitcoin_msg_header) + 1 + (inv_count * 36);
+    size_t var_int_size = write_var_int(NULL, inv_count); // Get the size of the var_int encoding
+    size_t payload_size = var_int_size + (inv_count * 36); // var_int size + 36 bytes per inventory vector
+    size_t inv_msg_size = sizeof(bitcoin_msg_header) + payload_size;
+
     printf("inv_count: %zu, inv_msg_size: %zu\n", inv_count, inv_msg_size);
 
     unsigned char* inv_msg = (unsigned char*)malloc(inv_msg_size);
@@ -1900,6 +1937,7 @@ void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count)
     }
 
     log_message(LOG_INFO, log_filename, __FILE__, "Sent 'inv' message.");
+    printf("Sent 'inv' message.\n");
     node->operation_in_progress = 1;
 
     // Wait for 10 seconds for a response
@@ -1921,10 +1959,40 @@ void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count)
     }
 
     log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'inv' message.");
+    printf("Received response to 'inv' message.\n");
     node->operation_in_progress = 0;
 
-    // Process the response (this part can be expanded based on the specific requirements)
-    // ...
+    // Process the response
+    if (bytes_received >= sizeof(bitcoin_msg_header))
+    {
+        bitcoin_msg_header* hdr = (bitcoin_msg_header*)buffer;
+        if (hdr->magic == BITCOIN_MAINNET_MAGIC)
+        {
+            char cmd_name[13];
+            memset(cmd_name, 0, sizeof(cmd_name));
+            memcpy(cmd_name, hdr->command, 12);
+
+            printf("Received command: '%s'\n", cmd_name);
+
+            if (strcmp(cmd_name, "inv") == 0)
+            {
+                printf("Received 'inv' response:\n");
+                handle_inv_response(idx, buffer + sizeof(bitcoin_msg_header), bytes_received - sizeof(bitcoin_msg_header));
+            }
+            else
+            {
+                printf("Unhandled command: '%s'\n", cmd_name);
+            }
+        }
+        else
+        {
+            printf("Unexpected magic bytes (0x%08X).\n", hdr->magic);
+        }
+    }
+    else
+    {
+        printf("Received incomplete message.\n");
+    }
 
     free(inv_msg);
 }
