@@ -18,6 +18,9 @@
 #define htole64(x) ((uint64_t)((((x) & 0xFF) << 56) | (((x) >> 8) & 0xFF00) | (((x) >> 16) & 0xFF0000) | (((x) >> 24) & 0xFF000000) | (((x) >> 32) & 0xFF00000000) | (((x) >> 40) & 0xFF0000000000) | (((x) >> 48) & 0xFF000000000000) | (((x) >> 56) & 0xFF00000000000000)))
 
 #define MAX_LOCATOR_COUNT 10
+#define GENESIS_BLOCK_HASH "0000000000000000000000000000000000000000000000000000000000000000"
+#define HEADERS_FILE "headers.dat"
+#define MAX_HEADERS_COUNT 2000
 
 // Structure for Bitcoin P2P message header (24 bytes).
 // For reference: https://en.bitcoin.it/wiki/Protocol_documentation#Message_structure
@@ -31,20 +34,31 @@ typedef struct
 } bitcoin_msg_header;
 #pragma pack(pop)
 
-// Node structure representing a peer connection
+/**
+ * @brief The structure to store information about a connected peer.
+ *
+ * @param ip_address The IP address of the peer.
+ * @param port The port of the peer.
+ * @param socket_fd The socket file descriptor for communication.
+ * @param thread The thread assigned to this connection.
+ * @param is_connected The connection status.
+ * @param operation_in_progress The operation status.
+ * @param compact_blocks Does peer want to use compact blocks.
+ * @param fee_rate Min fee rate in sat/kB of transaction that peer allows.
+ */
 typedef struct
 {
-    char ip_address[64]; // IP address of the peer
-    uint16_t port; // Port of the peer
-    int socket_fd; // Socket file descriptor for communication
-    pthread_t thread; // Thread assigned to this connection
-    int is_connected; // Connection status
-    int operation_in_progress; // is operation in progress
-    uint64_t compact_blocks; // Does peer want to use compact blocks
-    uint64_t fee_rate; // Min fee rate in sat/kB of transaction that peer allows
+    char ip_address[64];
+    uint16_t port;
+    int socket_fd;
+    pthread_t thread;
+    int is_connected;
+    int operation_in_progress;
+    uint64_t compact_blocks;
+    uint64_t fee_rate;
 } Node;
 
-// Declare the global array of nodes
+// global array of nodes
 extern Node nodes[MAX_NODES];
 
 /**
@@ -94,5 +108,13 @@ void disconnect(int node_id);
  * @param idx The index of the peer in the nodes array.
  */
 void send_getheaders_and_wait(int idx);
+
+/**
+ * @brief Loads the known block hash from the headers file and check if start and stop hashes are in the file.
+ *
+ * @param start_hash The start hash to check.
+ * @param stop_hash The stop hash to check.
+ */
+void send_headers(int idx, const unsigned char* start_hash, const unsigned char* stop_hash);
 
 #endif // __PEER_CONNECTION_H
