@@ -109,8 +109,9 @@ void print_peer_queue()
         pthread_mutex_unlock(&peer_queue_mutex);
         return;
     }
+    int k = 1;
     for (int i = peer_queue_start; i != peer_queue_end; i = (i + 1) % MAX_PEERS)
-        guarded_print_line("%s:%d", peer_queue[i].ip, peer_queue[i].port);
+        guarded_print_line("%d | %s:%d", k++, peer_queue[i].ip, peer_queue[i].port);
     pthread_mutex_unlock(&peer_queue_mutex);
 }
 
