@@ -138,6 +138,13 @@ static cli_command cli_commands[] =
         .cli_command_detailed_desc = " * getheaders - Sends 'getheaders'........",
         .cli_command_usage = "getheaders [idx of node]"
     },
+    {
+        .cli_command = &cli_getblocks,
+        .cli_command_name = "getblocks",
+        .cli_command_brief_desc = "Gets......",
+        .cli_command_detailed_desc = " * getblocks - Sends 'getblocks'........",
+        .cli_command_usage = "getblocks [idx of node]"
+    },
 }; // do not add NULLs at the end
 
 void print_help()
@@ -847,6 +854,32 @@ int cli_getheaders(char** args)
     int idx = atoi(args[0]);
     guarded_print_line("Sending getheaders to %d", idx);
     send_getheaders_and_wait(idx);
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_getblocks(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "No arguments provided for getblocks command");
+        print_usage("getblocks");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    if (args[1] != NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Too many arguments for getblocks command");
+        print_usage("getblocks");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+    int idx = atoi(args[0]);
+    guarded_print_line("Sending getblocks to %d", idx);
+    send_getblocks_and_wait(idx);
     pthread_mutex_unlock(&cli_mutex);
     return 0;
 }

@@ -185,6 +185,14 @@ int cli_disconnect(char** args);
  */
 int cli_getheaders(char** args);
 
+/**
+ * @brief Sends a 'getblocks' message to specified peer.
+ *
+ * @param args The index of the peer.
+ * @return The exit code.
+ */
+int cli_getblocks(char** args);
+
 
 //// LINE HANDLING FUNCTIONS ////
 
