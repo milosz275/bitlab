@@ -1172,11 +1172,36 @@ void print_block_header(const unsigned char* header)
 void parse_headers_message(const unsigned char* payload, size_t payload_len)
 {
     size_t offset = 0;
+    FILE* file = fopen(HEADERS_FILE, "ab");
+    if (!file)
+    {
+        perror("Failed to open headers file");
+        return;
+    }
+
     while (offset + 80 <= payload_len)
     {
         print_block_header(payload + offset);
+        fwrite(payload + offset, 80, 1, file);
         offset += 80;
     }
+
+    fclose(file);
+}
+
+void load_latest_known_block_hash(unsigned char* block_hash)
+{
+    FILE* file = fopen(HEADERS_FILE, "rb");
+    if (!file)
+    {
+        // No known blocks, use genesis block hash
+        memset(block_hash, 0, 32);
+        return;
+    }
+
+    fseek(file, -80, SEEK_END);
+    fread(block_hash, 32, 1, file);
+    fclose(file);
 }
 
 void send_getheaders_and_wait(int idx)
@@ -1192,13 +1217,11 @@ void send_getheaders_and_wait(int idx)
     snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
 
     // Define block locator and locator count
-    unsigned char block_locator[MAX_LOCATOR_COUNT][32];
-    int locator_count = 0;
+    unsigned char block_locator[MAX_LOCATOR_COUNT * 32];
+    int locator_count = 1; // Set to 1 to request headers starting from the latest known block
 
-    // Initialize block locator with some values (this should be replaced with actual logic)
-    // For example, you can fill it with the latest known block hashes
-    memset(block_locator, 0, sizeof(block_locator));
-    locator_count = 1; // Set to 1 for simplicity, adjust as needed
+    // Load the latest known block hash
+    load_latest_known_block_hash(block_locator);
 
     // Build the 'getheaders' message
     unsigned char getheaders_msg[sizeof(bitcoin_msg_header) + 4 + 1 + (MAX_LOCATOR_COUNT * 32) + 32];
@@ -1244,4 +1267,86 @@ void send_getheaders_and_wait(int idx)
     // Process the response and print to CLI
     guarded_print("Received response to 'getheaders' message:\n");
     parse_headers_message(buffer, bytes_received);
+}
+
+void send_headers(int idx, const unsigned char* start_hash, const unsigned char* stop_hash)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    // Open the headers file
+    FILE* file = fopen(HEADERS_FILE, "rb");
+    if (!file)
+    {
+        perror("Failed to open headers file");
+        return;
+    }
+
+    // Find the starting block header
+    unsigned char buffer[81];
+    size_t headers_count = 0;
+    int found_start = 0;
+    while (fread(buffer, 80, 1, file) == 1)
+    {
+        if (memcmp(buffer, start_hash, 32) == 0)
+        {
+            found_start = 1;
+            break;
+        }
+    }
+
+    if (!found_start)
+    {
+        fclose(file);
+        fprintf(stderr, "[Error] Start hash not found in headers file.\n");
+        return;
+    }
+
+    // Build the 'headers' message
+    unsigned char headers_msg[sizeof(bitcoin_msg_header) + 1 + (MAX_HEADERS_COUNT * 81)];
+    size_t offset = sizeof(bitcoin_msg_header);
+    headers_msg[offset++] = 0; // Placeholder for count
+
+    while (headers_count < MAX_HEADERS_COUNT && fread(buffer, 80, 1, file) == 1)
+    {
+        memcpy(headers_msg + offset, buffer, 80);
+        offset += 80;
+        headers_msg[offset++] = 0; // Transaction count (var_int, 0 for headers only)
+        headers_count++;
+
+        if (memcmp(buffer, stop_hash, 32) == 0)
+        {
+            break;
+        }
+    }
+
+    fclose(file);
+
+    // Set the count
+    headers_msg[sizeof(bitcoin_msg_header)] = headers_count;
+
+    // Build the message header
+    bitcoin_msg_header* header = (bitcoin_msg_header*)headers_msg;
+    header->magic = htole32(BITCOIN_MAINNET_MAGIC);
+    strncpy(header->command, "headers", 12);
+    header->length = htole32(offset - sizeof(bitcoin_msg_header));
+    header->checksum = calculate_checksum(headers_msg + sizeof(bitcoin_msg_header), offset - sizeof(bitcoin_msg_header));
+
+    // Send the 'headers' message
+    ssize_t bytes_sent = send(node->socket_fd, headers_msg, offset, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'headers' message: %s", strerror(errno));
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'headers' message.");
 }
