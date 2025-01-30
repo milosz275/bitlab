@@ -118,11 +118,27 @@ void disconnect(int node_id);
 void send_getheaders_and_wait(int idx);
 
 /**
- * @brief Loads the known block hash from the headers file and check if start and stop hashes are in the file.
+ * @brief Sends a 'headers' message to the peer.
  *
- * @param start_hash The start hash to check.
- * @param stop_hash The stop hash to check.
+ * This function sends a 'headers' message to the peer identified by the given index.
+ * It retrieves the block headers from the local storage starting from the specified
+ * start hash up to the stop hash or the maximum number of headers allowed.
+ *
+ * @param idx The index of the peer in the nodes array.
+ * @param start_hash The hash of the first block header to send.
+ * @param stop_hash The hash of the last block header to send.
  */
 void send_headers(int idx, const unsigned char* start_hash, const unsigned char* stop_hash);
+
+/**
+ * @brief Sends a 'getblocks' message to the peer and waits for a response.
+ *
+ * This function sends a 'getblocks' message to the peer identified by the given index
+ * and waits for a response. It is used to request a list of blocks from the connected peer.
+ * The response is processed and the blocks are saved to a file.
+ *
+ * @param idx The index of the peer in the nodes array.
+ */
+void send_getblocks_and_wait(int idx);
 
 #endif // __PEER_CONNECTION_H
