@@ -1129,7 +1129,7 @@ int connect_to_peer(const char* ip_addr)
     bool connected = false;
     for (int i = 0; i < 4; ++i)
     {
-        printf("for loop waiting for messages %d\n", i);
+        printf("[d] Executing %dth receive loop iteration\n", i);
         ssize_t n = recv(sockfd, recv_buf, sizeof(recv_buf), 0);
         if (n < 0)
         {
