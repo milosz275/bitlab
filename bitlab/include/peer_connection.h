@@ -30,7 +30,7 @@ typedef struct
     unsigned int magic; // Magic value indicating message origin network
     char command[12]; // ASCII command (null-padded)
     unsigned int length; // Payload size (little-endian)
-    unsigned int checksum; // First 4 bytes of double SHA-256 of the payload
+    unsigned char checksum[4]; // First 4 bytes of double SHA-256 of the payload
 } bitcoin_msg_header;
 #pragma pack(pop)
 
