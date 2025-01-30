@@ -257,6 +257,18 @@ void list_connected_nodes()
     }
 }
 
+int get_idx(const char* ip_address)
+{
+    for (int i = 0; i < MAX_NODES; ++i)
+    {
+        if (nodes[i].is_connected == 1 && strcmp(nodes[i].ip_address, ip_address) == 0)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void send_getaddr_and_wait(int idx)
 {
     if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
@@ -777,7 +789,6 @@ void* peer_communication(void* arg)
                 "[!] Received %s command ",
                 cmd_name);
 
-
             // Determine the payload length & pointer
             size_t payload_len = hdr->length;
             const unsigned char* payload_data = (const unsigned char*)buffer + sizeof(
@@ -791,6 +802,7 @@ void* peer_communication(void* arg)
                     bytes_received, sizeof(bitcoin_msg_header) + payload_len);
                 continue;
             }
+
             if (strcmp(cmd_name, "ping") == 0)
             {
                 // Typically 8-byte payload
@@ -836,6 +848,29 @@ void* peer_communication(void* arg)
                         "Invalid payload length for 'getaddr' command: %zu",
                         payload_len);
                 }
+            }
+            else if (strcmp(cmd_name, "getheaders") == 0)
+            {
+                // Parse the getheaders message
+                size_t offset = sizeof(bitcoin_msg_header);
+                uint32_t version;
+                memcpy(&version, payload_data + offset, 4);
+                offset += 4;
+
+                uint8_t hash_count = payload_data[offset++];
+                unsigned char start_hash[32];
+                memcpy(start_hash, payload_data + offset, 32);
+                offset += 32;
+
+                unsigned char stop_hash[32];
+                memcpy(stop_hash, payload_data + offset, 32);
+
+                // Log the received getheaders message
+                log_message(LOG_INFO, log_filename, __FILE__, "Received 'getheaders' message.");
+
+                // Send the headers in response
+                int idx = get_idx(node->ip_address);
+                send_headers(idx, start_hash, stop_hash);
             }
             // Info about compact blocks is saved but handling of compact blocks is not implemented
             else if (strcmp(cmd_name, "sendcmpct") == 0)

@@ -70,6 +70,14 @@ extern Node nodes[MAX_NODES];
 void list_connected_nodes();
 
 /**
+ * @brief Get the index of the node with the given IP address.
+ *
+ * @param ip_address The IP address of the node.
+ * @return The index of the node in the global array.
+ */
+int get_idx(const char* ip_address);
+
+/**
  * @brief Sends a 'getaddr' message to the peer and waits for a response.
  *
  * This function sends a 'getaddr' message to the peer identified by the given index
