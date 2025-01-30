@@ -141,4 +141,18 @@ void send_headers(int idx, const unsigned char* start_hash, const unsigned char*
  */
 void send_getblocks_and_wait(int idx);
 
+/**
+ * @brief Sends a 'getdata' message to the peer and waits for a response.
+ *
+ * This function sends a 'getdata' message to the peer identified by the given index
+ * and waits for a response. It is used to request specific blocks or transactions
+ * from the connected peer based on the provided hashes. The response is saved to a file
+ * and logged to the Bitlab logs.
+ *
+ * @param idx The index of the peer in the nodes array.
+ * @param hashes An array of hashes representing the blocks or transactions to request.
+ * @param hash_count The number of hashes in the array.
+ */
+void send_getdata_and_wait(int idx, const unsigned char* hashes, size_t hash_count);
+
 #endif // __PEER_CONNECTION_H

@@ -25,6 +25,7 @@
 Node nodes[MAX_NODES];
 
 void parse_inv_message(const unsigned char* payload, size_t payload_len);
+void handle_inv_message(int idx, const unsigned char* payload, size_t payload_len);
 size_t build_getblocks_message(unsigned char* buffer, size_t buffer_size, const unsigned char* block_locator, size_t locator_count);
 size_t write_var_int(unsigned char* buf, uint64_t value);
 unsigned char* load_blocks_from_file(const char* filename, size_t* payload_len);
@@ -900,6 +901,13 @@ void* peer_communication(void* arg)
                     free(payload);
                 }
             }
+            else if (strcmp(cmd_name, "inv") == 0)
+            {
+                // Handle the inv message
+                log_message(LOG_INFO, log_filename, __FILE__, "Received 'inv' message.");
+                int idx = get_idx(node->ip_address);
+                handle_inv_message(idx, payload_data, payload_len);
+            }
             // Info about compact blocks is saved but handling of compact blocks is not implemented
             else if (strcmp(cmd_name, "sendcmpct") == 0)
             {
@@ -1591,5 +1599,151 @@ void parse_inv_message(const unsigned char* payload, size_t payload_len)
             guarded_print("%02x", hash[j]);
         }
         guarded_print("\n");
+    }
+}
+
+void handle_inv_message(int idx, const unsigned char* payload, size_t payload_len)
+{
+    size_t offset = 0;
+    uint64_t count = read_var_int(payload + offset, &offset);
+
+    if (count == 0 || count > 50000)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Invalid inventory count in inv message: %llu", count);
+        return;
+    }
+
+    unsigned char hashes[count * 32];
+    size_t hash_count = 0;
+
+    for (uint64_t i = 0; i < count; i++)
+    {
+        if (offset + 36 > payload_len)
+        {
+            log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+                "Insufficient payload length for inventory entry");
+            return;
+        }
+
+        uint32_t type;
+        memcpy(&type, payload + offset, 4);
+        offset += 4;
+
+        if (type == 2) // Type 2 for block (1 for transaction)
+        {
+            memcpy(hashes + (hash_count * 32), payload + offset, 32);
+            hash_count++;
+        }
+        offset += 32;
+    }
+
+    if (hash_count > 0)
+    {
+        send_getdata_and_wait(idx, hashes, hash_count);
+    }
+}
+
+size_t build_getdata_message(unsigned char* buffer, size_t buffer_size, const unsigned char* hashes, size_t hash_count)
+{
+    if (buffer_size < sizeof(bitcoin_msg_header) + 1 + (hash_count * 36))
+        return 0;
+
+    unsigned char payload[1 + (hash_count * 36)];
+
+    // Set inventory count (var_int encoding)
+    size_t offset = 0;
+    offset += write_var_int(payload + offset, hash_count);
+
+    // Copy inventory vectors (type + hash)
+    for (size_t i = 0; i < hash_count; i++)
+    {
+        uint32_t type = htonl(2); // Assuming type 2 for block (1 for transaction)
+        memcpy(payload + offset, &type, 4);
+        offset += 4;
+        memcpy(payload + offset, hashes + (i * 32), 32);
+        offset += 32;
+    }
+
+    // Ensure buffer is large enough
+    if (offset > buffer_size)
+        return 0;
+
+    // Build final message
+    return build_message(buffer, buffer_size, "getdata", payload, offset);
+}
+
+void send_getdata_and_wait(int idx, const unsigned char* hashes, size_t hash_count)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    if (hash_count == 0 || hash_count > 50000)
+    {
+        fprintf(stderr, "[Error] Invalid hash count. Must be between 1 and 50000.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    // Build the 'getdata' message
+    unsigned char getdata_msg[sizeof(bitcoin_msg_header) + 1 + (hash_count * 36)];
+    size_t msg_len = build_getdata_message(getdata_msg, sizeof(getdata_msg), hashes, hash_count);
+    if (msg_len == 0)
+    {
+        fprintf(stderr, "[Error] Failed to build 'getdata' message.\n");
+        return;
+    }
+
+    // Send the 'getdata' message
+    ssize_t bytes_sent = send(node->socket_fd, getdata_msg, msg_len, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'getdata' message: %s", strerror(errno));
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'getdata' message.");
+    node->operation_in_progress = 1;
+
+    // Wait for 60 seconds for a response (increased timeout)
+    struct timeval tv;
+    tv.tv_sec = 60;
+    tv.tv_usec = 0;
+    setsockopt(node->socket_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+
+    // Receive the response
+    unsigned char buffer[32768];
+    ssize_t bytes_received = recv(node->socket_fd, buffer, sizeof(buffer), 0);
+    if (bytes_received < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to receive response: %s", strerror(errno));
+        node->operation_in_progress = 0;
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Received response to 'getdata' message.");
+    node->operation_in_progress = 0;
+
+    // Save the response to a file
+    char filename[256];
+    snprintf(filename, sizeof(filename), "getdata_response_%s.dat", node->ip_address);
+    FILE* file = fopen(filename, "wb");
+    if (file)
+    {
+        fwrite(buffer, 1, bytes_received, file);
+        fclose(file);
+        log_message(LOG_INFO, log_filename, __FILE__, "Saved response to file: %s", filename);
+    }
+    else
+    {
+        log_message(LOG_ERROR, log_filename, __FILE__, "Failed to open file for writing: %s", filename);
     }
 }
