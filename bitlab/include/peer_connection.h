@@ -171,4 +171,17 @@ void send_getdata_and_wait(int idx, const unsigned char* hashes, size_t hash_cou
  */
 void send_inv_and_wait(int idx, const unsigned char* inv_data, size_t inv_count);
 
+/**
+ * @brief Sends a 'tx' message to the specified node.
+ *
+ * This function sends a 'tx' message to the node identified by the given index
+ * with the provided transaction data. It constructs the message with the appropriate
+ * Bitcoin protocol header and sends it over the network socket associated with the node.
+ *
+ * @param idx The index of the node in the nodes array.
+ * @param tx_data A pointer to the transaction data in hexadecimal format.
+ * @param tx_size The size of the transaction data in bytes.
+ */
+void send_tx(int idx, const unsigned char* tx_data, size_t tx_size);
+
 #endif // __PEER_CONNECTION_H

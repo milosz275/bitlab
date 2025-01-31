@@ -2043,3 +2043,46 @@ void decode_transactions(const unsigned char* block_data, size_t block_len)
         printf("  Lock time: %u\n", lock_time);
     }
 }
+
+void send_tx(int idx, const unsigned char* tx_data, size_t tx_size)
+{
+    if (idx < 0 || idx >= MAX_NODES || !nodes[idx].is_connected)
+    {
+        fprintf(stderr, "[Error] Invalid node index or node not connected.\n");
+        return;
+    }
+
+    Node* node = &nodes[idx];
+    char log_filename[256];
+    snprintf(log_filename, sizeof(log_filename), "peer_connection_%s.log", node->ip_address);
+
+    if (!tx_data || tx_size == 0)
+    {
+        fprintf(stderr, "[Error] Invalid transaction data.\n");
+        return;
+    }
+
+    // Build the 'tx' message with the appropriate header
+    unsigned char tx_msg[sizeof(bitcoin_msg_header) + tx_size];
+
+    // Build the message header
+    bitcoin_msg_header* header = (bitcoin_msg_header*)tx_msg;
+    header->magic = htole32(BITCOIN_MAINNET_MAGIC);
+    strncpy(header->command, "tx", 12);
+    header->length = htole32(tx_size);
+    compute_checksum(tx_data, tx_size, header->checksum);
+
+    // Copy the transaction data
+    memcpy(tx_msg + sizeof(bitcoin_msg_header), tx_data, tx_size);
+
+    // Send the 'tx' message
+    ssize_t bytes_sent = send(node->socket_fd, tx_msg, sizeof(bitcoin_msg_header) + tx_size, 0);
+    if (bytes_sent < 0)
+    {
+        log_message(LOG_INFO, log_filename, __FILE__,
+            "[Error] Failed to send 'tx' message: %s", strerror(errno));
+        return;
+    }
+
+    log_message(LOG_INFO, log_filename, __FILE__, "Sent 'tx' message (%zu bytes).", tx_size);
+}
