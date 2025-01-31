@@ -193,9 +193,29 @@ int cli_getheaders(char** args);
  */
 int cli_getblocks(char** args);
 
+/**
+ * @brief Sends a 'inv' message to specified peer.
+ *
+ * @param args The index of the peer.
+ * @return The exit code.
+ */
 int cli_inv(char** args);
 
+/**
+ * @brief Sends a 'getdata' message to specified peer.
+ *
+ * @param args The index of the peer.
+ * @return The exit code.
+ */
 int cli_getdata(char** args);
+
+/**
+ * @brief Sends a 'tx' message to specified peer.
+ *
+ * @param args The index of the peer.
+ * @return The exit code.
+ */
+int cli_tx(char** args);
 
 
 //// LINE HANDLING FUNCTIONS ////

@@ -159,6 +159,13 @@ static cli_command cli_commands[] =
         .cli_command_detailed_desc = " * getdata - Sends 'getdata' to a idx-th node with given block hashes. Retrieves transaction data from returned 'blocks' message.",
         .cli_command_usage = "getdata [idx of node] [block hash 1] ..."
     },
+    {
+        .cli_command = &cli_tx,
+        .cli_command_name = "tx",
+        .cli_command_brief_desc = "Sends a transaction to a specified node.",
+        .cli_command_detailed_desc = " * tx - Sends a 'tx' message to the specified node with the provided transaction data.",
+        .cli_command_usage = "tx [idx of node] [transaction data in hex]"
+    },
 }; // do not add NULLs at the end
 
 void print_help()
@@ -1022,6 +1029,52 @@ int cli_inv(char** args)
     send_inv_and_wait(idx, inv_data, inv_count);
 
     free(inv_data);
+    pthread_mutex_unlock(&cli_mutex);
+    return 0;
+}
+
+int cli_tx(char** args)
+{
+    pthread_mutex_lock(&cli_mutex);
+    if (args[0] == NULL || args[1] == NULL)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "No arguments provided for tx command");
+        print_usage("tx");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    int idx = atoi(args[0]);
+    if (idx < 0 || idx >= MAX_NODES)
+    {
+        log_message(LOG_WARN, BITLAB_LOG, __FILE__,
+            "Invalid node index for tx command");
+        print_usage("tx");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    // Parse the transaction data from the arguments
+    size_t tx_size = strlen(args[1]) / 2;
+    unsigned char* tx_data = malloc(tx_size);
+    if (tx_data == NULL)
+    {
+        log_message(LOG_ERROR, BITLAB_LOG, __FILE__,
+            "Failed to allocate memory for transaction data");
+        pthread_mutex_unlock(&cli_mutex);
+        return 1;
+    }
+
+    for (size_t i = 0; i < tx_size; i++)
+    {
+        sscanf(&args[1][i * 2], "%2hhx", &tx_data[i]);
+    }
+
+    guarded_print_line("Sending transaction to %d with size %zu", idx, tx_size);
+    send_tx(idx, tx_data, tx_size);
+
+    free(tx_data);
     pthread_mutex_unlock(&cli_mutex);
     return 0;
 }
