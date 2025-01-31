@@ -35,6 +35,15 @@ network's inner workings using the Bitcoin protocol.
 - [Features](#features)
 - [License](#license)
 
+## Requirements
+
+Please run following:
+
+```bash
+    sudo apt-get update
+    sudo apt-get install -y g++ libreadline-dev libssl-dev
+```
+
 ## Installation
 
 > [!NOTE]
@@ -60,32 +69,25 @@ curl -s https://raw.githubusercontent.com/milosz275/bitlab/main/uninstall.sh | s
 
 To build BitLab from source, follow these steps:
 
-1. Install the required dependencies:
-
-    ```bash
-    sudo apt-get update
-    sudo apt-get install -y cmake libreadline-dev libssl-dev
-    ```
-
-2. Clone the repository:
+1. Clone the repository:
 
     ```bash
     git clone https://github.com/milosz275/bitlab.git
     ```
 
-3. Change to the project directory:
+2. Change to the project directory:
 
     ```bash
     cd bitlab
     ```
 
-4. Build the project:
+3. Build the project:
 
     ```bash
     make
     ```
 
-5. Use the `main` executable:
+4. Use the `main` executable:
 
     ```bash
     bitlab/build/bin/main
