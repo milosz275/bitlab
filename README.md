@@ -5,7 +5,7 @@
 [![Doxygen Pages](https://github.com/milosz275/bitlab/actions/workflows/doxygen-pages.yml/badge.svg)](https://github.com/milosz275/bitlab/actions/workflows/doxygen-pages.yml)
 [![License](https://img.shields.io/github/license/milosz275/bitlab)](/LICENSE)
 
-![Logo](assets/logo.jpg)
+![Logo](assets/logo.png)
 
 BitLab is an interactive command-line tool for exploring and interacting with the
 Bitcoin P2P network and blockchain. Inspired by SockLab, BitLab provides a user-friendly
@@ -23,9 +23,6 @@ network's inner workings using the Bitcoin protocol.
 - [GitHub Repo](https://github.com/milosz275/bitlab)
 - [Doxygen Docs](https://milosz275.github.io/bitlab)
 
-> [!NOTE]
-> This project is a work in progress.
-
 ## Table of Contents
 
 - [Installation](#installation)
@@ -41,7 +38,7 @@ Please run following:
 
 ```bash
     sudo apt-get update
-    sudo apt-get install -y g++ libreadline-dev libssl-dev
+    sudo apt-get install -y gcc libreadline-dev libssl-dev
 ```
 
 ## Installation
@@ -95,7 +92,7 @@ To build BitLab from source, follow these steps:
 
 ## Usage
 
-<!-- [ ] Add usage instructions -->
+Run `help` to display available commands and `help [command]` to view detailed information about specific one.
 
 ## Config directory
 
